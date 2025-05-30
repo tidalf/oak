@@ -74,6 +74,42 @@ impl<const N: usize> BumpAllocator<N> {
     }
 }
 
+// Simple allocator for EBDA that doesn't use atomics
+#[link_section = ".ebda"]
+static mut EBDA_MEMORY: [u8; 0x1_9000] = [0; 0x1_9000];
+static mut EBDA_OFFSET: usize = 0;
+
+pub struct SimpleEbdaAllocator;
+
+unsafe impl core::alloc::Allocator for SimpleEbdaAllocator {
+    fn allocate(
+        &self,
+        layout: Layout,
+    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
+        unsafe {
+            let offset = EBDA_OFFSET;
+            let aligned_offset = (offset + layout.align() - 1) & !(layout.align() - 1);
+            let end = aligned_offset + layout.size();
+
+            if end > EBDA_MEMORY.len() {
+                return Err(core::alloc::AllocError);
+            }
+
+            EBDA_OFFSET = end;
+
+            let ptr = EBDA_MEMORY.as_mut_ptr().add(aligned_offset);
+            let slice = core::slice::from_raw_parts_mut(ptr, layout.size());
+
+            slice.fill(0);
+
+            Ok(core::ptr::NonNull::from(slice))
+        }
+    }
+
+}
+
+pub static SIMPLE_EBDA_ALLOCATOR: SimpleEbdaAllocator = SimpleEbdaAllocator;
+
 unsafe impl<const N: usize> Allocator for BumpAllocator<N> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         let mut inner = self.inner.lock();

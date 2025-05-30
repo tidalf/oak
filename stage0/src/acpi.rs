@@ -40,6 +40,7 @@ use crate::{
     acpi_tables::{
         DescriptionHeader, MultiprocessorWakeup, ProcessorLocalApic, ProcessorLocalX2Apic, Rsdp,
     },
+    allocator::SIMPLE_EBDA_ALLOCATOR,
     fw_cfg::{DirEntry, FwCfg},
     Madt, ZeroPage,
 };
@@ -899,7 +900,7 @@ pub fn build_acpi_tables<P: crate::Platform>(
     fwcfg: &mut FwCfg<P>,
     acpi_digest: &mut Sha256,
 ) -> Result<&'static Rsdp, &'static str> {
-    let mut files = MemFiles::new(&LOW_MEMORY_ALLOCATOR, &HIGH_MEMORY_ALLOCATOR);
+    let mut files = MemFiles::new(&SIMPLE_EBDA_ALLOCATOR, &HIGH_MEMORY_ALLOCATOR);
 
     let file =
         fwcfg.find(TABLE_LOADER_FILE_NAME).ok_or("Could not find 'etc/table-loader' in fw_cfg")?;
