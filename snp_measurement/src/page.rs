@@ -106,7 +106,10 @@ impl PageInfo {
 
     /// Updates the current measurement digest from a VMSA page.
     pub fn update_from_vmsa(&mut self, vmsa: &VmsaPage, start_address: PhysAddr) {
-        debug!("Updating measurement with VMSA at address {:#018x}", start_address);
+        debug!(
+            "Updating measurement with VMSA at address {:#018x}",
+            start_address
+        );
         self.page_type = PageType::Vmsa;
         self.gpa = start_address.as_u64();
         self.set_contents_from_page_bytes(vmsa.as_bytes());
@@ -118,7 +121,10 @@ impl PageInfo {
     /// Measurement of these pages do not include a measurement of the content,
     /// only the metadata.
     pub fn update_from_snp_page(&mut self, page_type: PageType, start_address: PhysAddr) {
-        debug!("Updating measurement with {:?} page at address {:#018x}", page_type, start_address);
+        debug!(
+            "Updating measurement with {:?} page at address {:#018x}",
+            page_type, start_address
+        );
         match page_type {
             PageType::Cpuid | PageType::Secrets | PageType::Unmeasured | PageType::Zero => {
                 self.page_type = page_type;
@@ -137,7 +143,10 @@ impl PageInfo {
     /// fill the entire 4KiB area.
     fn set_contents_from_page_bytes(&mut self, page_bytes: &[u8]) {
         let byte_count = page_bytes.len();
-        assert!(byte_count <= Size4KiB::SIZE as usize, "too many bytes in page");
+        assert!(
+            byte_count <= Size4KiB::SIZE as usize,
+            "too many bytes in page"
+        );
         let mut contents_hasher = Sha384::new();
         if byte_count == Size4KiB::SIZE as usize {
             contents_hasher.update(page_bytes);
