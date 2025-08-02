@@ -556,7 +556,7 @@ fn get_channel<'a, A: Allocator + Sync>(
         #[cfg(feature = "vsock_channel")]
         ChannelType::VirtioVsock => Box::new(virtio::get_vsock_channel(alloc)),
         #[cfg(feature = "serial_channel")]
-        ChannelType::Serial => Box::new(serial::Serial::new()),
+        ChannelType::Serial => Box::new(serial::Serial::new(sev_status)),
         #[cfg(feature = "simple_io_channel")]
         ChannelType::SimpleIo => Box::new(simpleio::SimpleIoChannel::new(alloc, sev_status)),
     }
