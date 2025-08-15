@@ -17,22 +17,16 @@
 load("@rules_rust//rust:defs.bzl", "rust_binary")
 
 package(
-    default_visibility = ["//:internal"],
+    default_visibility = ["//:default_visibility"],
     licenses = ["notice"],
 )
 
 rust_binary(
-    name = "oak_attestation_explain_cli",
-    srcs = glob(["src/**"]),
+    name = "unattested_nn_encryption_and_decryption",
+    testonly = True,
+    srcs = ["unattested_nn_encryption_and_decryption.rs"],
     deps = [
-        "//oak_attestation_explain",
-        "//oak_attestation_verification",
-        "//oak_proto_rust",
-        "@oak_crates_index//:anyhow",
-        "@oak_crates_index//:clap",
-        "@oak_crates_index//:hex",
-        "@oak_crates_index//:prost",
-        "@oak_crates_index//:sha2",
-        "@oak_crates_index//:zerocopy",
+        "//falsify",
+        "//oak_session:oak_session_testing",
     ],
 )

@@ -14,17 +14,14 @@
 // limitations under the License.
 //
 
-use oak_attestation_explain::HumanReadableExplanation;
-use oak_proto_rust::oak::attestation::v1::Evidence;
-use prost::Message;
+use oak_ffi_error::Error;
 
-#[wasm_bindgen::prelude::wasm_bindgen]
-pub fn explain(bytes: &[u8]) -> String {
-    let extracted_evidence = {
-        // TODO: b/334900893 - Generate extracted evidence programatically.
-        let evidence = Evidence::decode(bytes).expect("could not decode evidence");
-        oak_attestation_verification::extract::extract_evidence(&evidence)
-            .expect("could not extract evidence")
-    };
-    extracted_evidence.description().unwrap()
+#[no_mangle]
+extern "C" fn anyhow_error_with_three_contexts() -> *const Error {
+    Error::new_raw(
+        anyhow::anyhow!("Main error message")
+            .context("first context")
+            .context("second context")
+            .context("third context"),
+    )
 }

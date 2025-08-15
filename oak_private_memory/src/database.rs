@@ -19,9 +19,8 @@ use anyhow::{bail, ensure, Context};
 use encryption::{decrypt, encrypt, generate_nonce};
 pub use external_db_client::{BlobId, DataBlobHandler, ExternalDbClient};
 use icing::IcingGroundTruthFilesHelper;
-use log::debug;
+use log::{debug, error};
 use prost::Message;
-use rand::Rng;
 use sealed_memory_rust_proto::oak::private_memory::{
     Embedding, EncryptedDataBlob, EncryptedUserInfo, KeyDerivationInfo, Memory, PlainTextUserInfo,
     ScoreRange, SearchMemoryRequest, UserDb,
@@ -545,7 +544,12 @@ impl MemoryCache {
     }
 
     async fn fetch_decrypt_decode_memory(&self, blob_id: &BlobId) -> anyhow::Result<Memory> {
-        let encrypted_blob = self.db_client.clone().get_blob(blob_id, false).await?;
+        let encrypted_blob = self
+            .db_client
+            .clone()
+            .get_blob(blob_id, false)
+            .await?
+            .context(format!("Blob not found for id: {}", blob_id))?;
         let decrypted_data = decrypt(&self.dek, &encrypted_blob.nonce, &encrypted_blob.data)?;
         Ok(Memory::decode(&*decrypted_data)?)
     }
@@ -579,12 +583,17 @@ impl MemoryCache {
 
         if !missing_ids.is_empty() {
             let encrypted_blobs = self.db_client.get_blobs(&missing_ids, false).await?;
-            for (blob_id, encrypted_blob) in missing_ids.iter().zip(encrypted_blobs.into_iter()) {
-                let decrypted_data =
-                    decrypt(&self.dek, &encrypted_blob.nonce, &encrypted_blob.data)?;
-                let memory: Memory = Memory::decode(&*decrypted_data)?;
-                self.content_cache.insert(blob_id.clone(), memory.clone());
-                results.insert(blob_id.clone(), memory);
+            for (blob_id, encrypted_blob_opt) in missing_ids.iter().zip(encrypted_blobs.into_iter())
+            {
+                if let Some(encrypted_blob) = encrypted_blob_opt {
+                    let decrypted_data =
+                        decrypt(&self.dek, &encrypted_blob.nonce, &encrypted_blob.data)?;
+                    let memory: Memory = Memory::decode(&*decrypted_data)?;
+                    self.content_cache.insert(blob_id.clone(), memory.clone());
+                    results.insert(blob_id.clone(), memory);
+                } else {
+                    bail!("Blob not found for id: {}", blob_id);
+                }
             }
         }
 
@@ -604,7 +613,7 @@ impl MemoryCache {
     }
 
     pub async fn add_memory(&mut self, memory: &Memory) -> anyhow::Result<BlobId> {
-        let blob_id: BlobId = rand::rng().random::<u128>().to_string();
+        let blob_id: BlobId = rand::random::<u128>().to_string();
         let (encrypted_data, nonce) = self.encode_encrypt_memory(memory)?;
         let encrypted_blob = EncryptedDataBlob { nonce, data: encrypted_data };
 
@@ -622,7 +631,7 @@ impl MemoryCache {
 
         for memory in memories {
             let (encrypted_data, nonce) = self.encode_encrypt_memory(memory)?;
-            let blob_id: BlobId = rand::rng().random::<u128>().to_string();
+            let blob_id: BlobId = rand::random::<u128>().to_string();
             let encrypted_blob = EncryptedDataBlob { nonce, data: encrypted_data };
 
             blob_ids.push(blob_id);
@@ -708,8 +717,21 @@ pub fn decrypt_database(
 ) -> anyhow::Result<EncryptedUserInfo> {
     let nonce = datablob.nonce;
     let data = datablob.data;
-    let decrypted_data = decrypt(key, &nonce, &data)?;
-    let user_db = EncryptedUserInfo::decode(decrypted_data.as_slice())?;
+    let decrypted_data = match decrypt(key, &nonce, &data) {
+        Ok(data) => data,
+        Err(err) => {
+            error!(
+                "Failed to decrypt database: key_len={}, nonce_len={}, data_len={}, error={:?}",
+                key.len(),
+                nonce.len(),
+                data.len(),
+                err
+            );
+            return Err(err);
+        }
+    };
+    let user_db = EncryptedUserInfo::decode(decrypted_data.as_slice())
+        .context("Failed to decode EncryptedUserInfo")?;
     Ok(user_db)
 }
 

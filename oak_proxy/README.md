@@ -31,8 +31,8 @@ these two proxies.
   +----------------+      +---------------------+      +---------------------+      +-----------------+
   |                |      |                     |      |                     |      |                 |
   |   Client App   |----->|    Client Proxy     |=====>|    Server Proxy     |----->|   Server App    |
-  |  (e.g. cURL)   | Plain|  (Forward Proxy)    | Oak  |  (Reverse Proxy)    | Plain| (e.g. HTTP Srv) |
-  |                | TCP  |                     |Session                     | TCP  |                 |
+  |  (e.g. cURL)   | Plain|  (Forward Proxy)    | Oak Session over |  (Reverse Proxy)    | Plain| (e.g. HTTP Srv) |
+  |                | TCP  |                     |    WebSocket     | TCP  |                 |
   +----------------+      +---------------------+      +---------------------+      +-----------------+
         ^                                          |                                      |
         |                                          |                                      |
@@ -51,7 +51,7 @@ these two proxies.
   Client Proxy. It decrypts the traffic and forwards the plaintext to the final
   backend application server.
 - **Shared Library (`//oak_proxy/lib`)**: A shared Rust library containing the
-  common logic for data framing and proxying, used by both the client and server
+  common logic for proxying, used by both the client and server
   binaries.
 
 ### How It Works
@@ -61,44 +61,34 @@ these two proxies.
 2. **Session Establishment**: When the Client Proxy receives a connection, it
    initiates an `oak_session` handshake with the Server Proxy. The current
    implementation uses an unattested session for simplicity. The handshake
-   messages are exchanged using the wire protocol described below.
+   messages are exchanged over the WebSocket connection.
 3. **Data Forwarding (Client to Server)**:
    - The Client Proxy reads raw plaintext bytes from the application's TCP
      stream.
    - It passes these bytes to its `ClientSession` instance, which encrypts them.
    - The `ClientSession` produces an encrypted Protobuf message.
-   - The Client Proxy sends this message to the Server Proxy using the wire
-     protocol.
-   - The Server Proxy receives and decodes the message from the wire.
+   - The Client Proxy sends this message as a binary frame over the WebSocket to the Server Proxy.
+   - The Server Proxy receives the binary WebSocket frame.
    - It passes the encrypted message to its `ServerSession`, which decrypts it.
    - The resulting plaintext is written to the TCP stream connected to the
      backend server.
 4. **Data Forwarding (Server to Client)**: The process is reversed for the
    response.
 
-### Wire Protocol
+### Transport Protocol
 
-Since TCP is a stream-based protocol, a framing mechanism is required to
-delineate individual messages. This project uses a simple length-prefix framing
-protocol:
+To ensure a standardized and robust transport layer, the communication between
+the client and server proxies uses the **WebSocket** protocol.
 
-- Each message (both for the handshake and for data transfer) is a Protobuf
-  message serialized into bytes.
-- Before sending the serialized message, its length is calculated as a 32-bit
-  unsigned integer (`u32`).
-- The 4-byte length is sent over the wire in big-endian order, immediately
-  followed by the serialized message bytes.
+- All communication, including the `oak_session` handshake and subsequent data
+  transfer, occurs over a WebSocket connection.
+- Protobuf messages are serialized and sent as binary frames
+  (`MessageType::Binary`) within the WebSocket protocol.
 
-```text
-  +--------------------------------+-----------------------------------------+
-  |         4-byte Length          |            Protobuf Message             |
-  | (u32, Big-Endian)              |              (variable length)          |
-  +--------------------------------+-----------------------------------------+
-```
-
-This ensures that the receiving end knows exactly how many bytes to read for the
-next message. This logic is encapsulated in the `//oak_proxy/lib/framing`
-module.
+This approach eliminates the need for a custom framing mechanism, as WebSockets
+provide a message-based transport that naturally delineates each Protobuf
+message. The WebSocket handling logic is located in the
+`//oak_proxy/lib/src/websocket.rs` module.
 
 ## Security Model
 
@@ -138,7 +128,7 @@ backend_address = "127.0.0.1:8080"
 
 ```toml
 listen_address = "127.0.0.1:9090"
-server_proxy_address = "127.0.0.1:8081"
+server_proxy_url = "ws://127.0.0.1:8081"
 ```
 
 ### 2. Build the Proxies
@@ -215,12 +205,20 @@ configuration file passed via the `--config` command-line argument.
 
 ### Client-Specific Options
 
-- `server_proxy_address`: The `SocketAddr` of the server proxy.
+- `server_proxy_url`: The WebSocket `Url` of the server proxy.
 
 ### Server-Specific Options
 
 - `backend_address`: The `SocketAddr` of the final backend application where
   plaintext traffic should be forwarded.
+- `backend_command`: (Optional) A command to execute a backend process that the
+  server proxy will manage. The backend command should be configured with flags
+  to listen in `backend_address`. It has the following structure:
+  - `cmd`: The command to execute.
+  - `args`: A list of arguments for the command.
+  - `restart_policy`: Defines the behavior when the process exits. Can be
+    `terminate` (default, exits the proxy), `always` (restarts the process),
+    or `never` (does nothing).
 
 ### Attestation Modes
 
@@ -258,7 +256,7 @@ root_certificate_pem_path = "/path/to/gcp_root.pem"
 
 ```toml
 listen_address = "127.0.0.1:9090"
-server_proxy_address = "127.0.0.1:8081"
+server_proxy_url = "ws://127.0.0.1:8081"
 
 # Generate our own Confidential Space attestation.
 [[attestation_generators]]
@@ -370,11 +368,14 @@ Let's say you want to add a new attestation mechanism called
 
 ## Testing
 
-The proxy has an automated test that simulates the manual steps described above.
+The proxy includes an integration test that simulates the manual steps described
+in the "Usage" section. It programmatically creates configurations, starts the
+proxies, and verifies that data can be sent and received correctly.
+
 To run the test:
 
 ```bash
-bazel test //oak_proxy:proxy_test
+bazel test //oak_proxy:oak_proxy_integration_test
 ```
 
 ## Future Work

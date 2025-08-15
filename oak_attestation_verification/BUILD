@@ -15,7 +15,6 @@
 #
 
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test", "rust_test_suite")
-load("//bazel:defs.bzl", "any_platform")
 
 package(
     default_visibility = ["//:default_visibility"],
@@ -29,13 +28,6 @@ rust_library(
         "//oak_attestation_verification/data:amd_ask_certs",
         "//oak_attestation_verification/data:intel_pck_root",
     ],
-    target_compatible_with = any_platform([
-        "//:aarch64-apple-setting",
-        "//:x86_64-linux-setting",
-        "//:x86_64-none-no_avx-setting",
-        "//:x86_64-none-setting",
-        "//:wasm32-none-setting",
-    ]),
     deps = [
         "//oak_attestation_verification_types",
         "//oak_crypto",
@@ -102,7 +94,6 @@ rust_test_suite(
         ":oak_attestation_verification",
         ":test_util",
         "//oak_attestation_verification_types",
-        "//oak_crypto",
         "//oak_file_utils",
         "//oak_proto_rust",
         "//oak_sev_snp_attestation_report",
@@ -194,7 +185,6 @@ rust_test_suite(
         ":oak_attestation_verification_with_regex",
         ":test_util",
         "//oak_attestation_verification_types",
-        "//oak_crypto",
         "//oak_file_utils",
         "//oak_proto_rust",
         "//oak_sev_snp_attestation_report",
@@ -225,10 +215,12 @@ rust_library(
     deps = [
         "//oak_file_utils",
         "//oak_proto_rust",
+        "//oak_sev_snp_attestation_report",
         "//oak_time",
         "@oak_crates_index//:anyhow",
         "@oak_crates_index//:p256",
         "@oak_crates_index//:prost",
+        "@oak_crates_index//:zerocopy",
     ],
 )
 

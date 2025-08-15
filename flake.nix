@@ -162,7 +162,6 @@
                 cpio
                 cosign
                 curl
-                datefudge
                 docker
                 fakeroot
                 flex
@@ -179,6 +178,7 @@
               ++
               # Linux-specific dependencies.
               lib.optionals stdenv.isLinux [
+                datefudge
                 elfutils
                 glibc
                 glibc.static
@@ -216,7 +216,9 @@
 
                 EOF
               '';
-              packages = [ ];
+              packages = [
+                pkgs.terraform
+              ];
               inputsFrom = [
                 containers
                 rust

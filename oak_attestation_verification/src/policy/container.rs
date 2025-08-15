@@ -14,12 +14,6 @@
 // limitations under the License.
 //
 
-use alloc::{
-    collections::BTreeMap,
-    string::{String, ToString},
-    vec::Vec,
-};
-
 use anyhow::Context;
 use oak_attestation_verification_types::policy::Policy;
 use oak_proto_rust::oak::{
@@ -34,8 +28,8 @@ use oak_time::Instant;
 use crate::{
     compare::compare_container_layer_measurement_digests,
     expect::acquire_container_event_expected_values,
-    policy::{
-        HYBRID_ENCRYPTION_PUBLIC_KEY_ID, SESSION_BINDING_PUBLIC_KEY_ID, SIGNING_PUBLIC_KEY_ID,
+    results::{
+        set_hybrid_encryption_public_key, set_session_binding_public_key, set_signing_public_key,
     },
     util::decode_event_proto,
 };
@@ -77,24 +71,42 @@ impl Policy<[u8]> for ContainerPolicy {
         compare_container_layer_measurement_digests(&event, &expected_values)
             .context("couldn't verify container event")?;
 
-        let mut artifacts = BTreeMap::<String, Vec<u8>>::new();
+        let mut results = EventAttestationResults { ..Default::default() };
         if !event.session_binding_public_key.is_empty() {
-            artifacts.insert(
-                SESSION_BINDING_PUBLIC_KEY_ID.to_string(),
-                event.session_binding_public_key.to_vec(),
-            );
+            set_session_binding_public_key(&mut results, &event.session_binding_public_key);
         }
         if !event.hybrid_encryption_public_key.is_empty() {
-            artifacts.insert(
-                HYBRID_ENCRYPTION_PUBLIC_KEY_ID.to_string(),
-                event.hybrid_encryption_public_key,
-            );
+            set_hybrid_encryption_public_key(&mut results, &event.hybrid_encryption_public_key);
         }
         if !event.signing_public_key.is_empty() {
-            artifacts.insert(SIGNING_PUBLIC_KEY_ID.to_string(), event.signing_public_key);
+            set_signing_public_key(&mut results, &event.signing_public_key);
         }
 
         // TODO: b/356631062 - Return detailed attestation results.
-        Ok(EventAttestationResults { artifacts })
+        Ok(results)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use test_util::{get_oc_reference_values, AttestationData};
+
+    use super::*;
+
+    const CONTAINER_EVENT_INDEX: usize = 2;
+
+    #[test]
+    fn verify_succeeds() {
+        let d = AttestationData::load_milan_oc_release();
+        let event = &d.evidence.event_log.as_ref().unwrap().encoded_events[CONTAINER_EVENT_INDEX];
+        let endorsement = &d.endorsements.events[CONTAINER_EVENT_INDEX];
+        let ref_values = get_oc_reference_values(&d.reference_values);
+        // TODO: b/382550581 - Container reference values currently skip verification.
+        let policy = ContainerPolicy::new(ref_values.container_layer.as_ref().unwrap());
+
+        let result = policy.verify(d.make_valid_time(), event, endorsement);
+
+        // TODO: b/356631062 - Verify detailed attestation results.
+        assert!(result.is_ok(), "Failed: {:?}", result.err().unwrap());
     }
 }
