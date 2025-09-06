@@ -727,8 +727,29 @@ pub struct ConfidentialSpaceReferenceValues {
     /// attestations.
     #[prost(string, tag = "1")]
     pub root_certificate_pem: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub cosign_reference_values: ::core::option::Option<CosignReferenceValues>,
+    /// Reference values specific to the workload container.
+    #[prost(
+        oneof = "confidential_space_reference_values::ContainerImage",
+        tags = "2, 3"
+    )]
+    pub container_image: ::core::option::Option<
+        confidential_space_reference_values::ContainerImage,
+    >,
+}
+/// Nested message and enum types in `ConfidentialSpaceReferenceValues`.
+pub mod confidential_space_reference_values {
+    /// Reference values specific to the workload container.
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum ContainerImage {
+        #[prost(message, tag = "2")]
+        CosignReferenceValues(super::CosignReferenceValues),
+        /// Image reference from the Confidential Space attestation. See
+        /// <https://cloud.google.com/confidential-computing/confidential-space/docs/reference/token-claims#workload-container-claims>
+        /// TODO: b/439861326 - Remove this field and introduce new endorsement field
+        /// that relies on Oak Transparent release.
+        #[prost(string, tag = "3")]
+        ContainerImageReference(::prost::alloc::string::String),
+    }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReferenceValues {
@@ -1407,23 +1428,24 @@ pub mod expected_values {
         Cb(super::CbExpectedValues),
     }
 }
-/// Represents a verification result. Can be extended to return certain
-/// measurements and other detail to the client for further processing.
-/// Nomenclature follows RFC 9334.
+/// Represents a verification result along with certain measurements and other
+/// detail to the client for further processing. Nomenclature follows RFC 9334.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AttestationResults {
-    /// Indicates whether the verification passed and perhaps more.
+    /// Indicates whether the verification passed. Used only in conjunction
+    /// with legacy attestation verification; for policy-based verification
+    /// this must be STATUS_SUCCESS (note that this is not the default).
     #[prost(enumeration = "attestation_results::Status", tag = "1")]
     pub status: i32,
     /// Provides the reason why verification did not pass, on non-success status.
+    /// Used only in conjunction with legacy attestation verification; for
+    /// policy-based verification this field must not be used.
     #[prost(string, tag = "2")]
     pub reason: ::prost::alloc::string::String,
     /// Contains the verified public key for encryption whenever the status
     /// indicates success. The key is serialized as an X25519 octet string.
     ///
-    /// Deprecated: will be replaced by the
-    /// `extracted_evidence.encryption_public_key` field. For now both are
-    /// populated.
+    /// Deprecated: Use `extracted_evidence.encryption_public_key` instead.
     #[deprecated]
     #[prost(bytes = "vec", tag = "3")]
     pub encryption_public_key: ::prost::alloc::vec::Vec<u8>,
@@ -1431,15 +1453,16 @@ pub struct AttestationResults {
     /// indicates success. The key is serialized using the SEC 1
     /// Elliptic-Curve-Point-to-Octet-String conversion.
     ///
-    /// Deprecated: will be replaced by the `extracted_evidence.signing_public_key`
-    /// field. For now both are populated.
+    /// Deprecated: Use `extracted_evidence.signing_public_key` instead.
     #[deprecated]
     #[prost(bytes = "vec", tag = "4")]
     pub signing_public_key: ::prost::alloc::vec::Vec<u8>,
     /// Contains the evidence values whenever the status indicates success.
     #[prost(message, optional, tag = "5")]
     pub extracted_evidence: ::core::option::Option<ExtractedEvidence>,
-    /// Detailed attestation verification results each event.
+    /// Detailed attestation verification results for each event. The length and
+    /// order coincides with the number and order of policies in the verifier.
+    /// Field will not be populated with legacy attestation verification.
     #[prost(message, repeated, tag = "6")]
     pub event_attestation_results: ::prost::alloc::vec::Vec<EventAttestationResults>,
 }
@@ -1486,7 +1509,6 @@ pub mod attestation_results {
     }
 }
 /// Attestation verification results for an individual event.
-/// TODO: b/366419879 - Implement descriptive per-event attestation results.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EventAttestationResults {
     /// Map of artifacts extracted from current event.

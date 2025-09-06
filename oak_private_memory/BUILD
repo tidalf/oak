@@ -21,6 +21,7 @@ load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
 package(
+    default_visibility = ["//visibility:public"],
     licenses = ["notice"],
 )
 
@@ -53,14 +54,6 @@ rust_test(
     deps = [
         "@oak_crates_index//:googletest",
         "@oak_crates_index//:tempfile",
-    ],
-)
-
-rust_library(
-    name = "app_config",
-    srcs = ["src/app_config.rs"],
-    deps = [
-        "@oak_crates_index//:serde",
     ],
 )
 
@@ -117,69 +110,17 @@ rust_library(
 )
 
 rust_library(
-    name = "database",
-    srcs = ["src/database.rs"],
-    deps = [
-        ":encryption",
-        ":external_db_client",
-        ":log",
-        "//proto:sealed_memory_rust_proto",
-        "//src/icing",
-        "@cxx.rs//:cxx",
-        "@oak_crates_index//:anyhow",
-        "@oak_crates_index//:prost",
-        "@oak_crates_index//:rand",
-        "@oak_crates_index//:tempfile",
-    ],
-)
-
-rust_library(
-    name = "app",
-    srcs = [
-        "src/app.rs",
-        "src/app_service.rs",
-    ],
-    proc_macro_deps = [
-        "@oak_crates_index//:async-trait",
-    ],
-    deps = [
-        ":app_config",
-        ":database",
-        ":encryption",
-        ":log",
-        ":metrics",
-        "//proto:sealed_memory_rust_proto",
-        "//proto/grpc:sealed_memory_grpc_proto",
-        "@oak//oak_proto_rust",
-        "@oak//oak_session",
-        "@oak_crates_index//:anyhow",
-        "@oak_crates_index//:async-stream",
-        "@oak_crates_index//:futures",
-        "@oak_crates_index//:opentelemetry",
-        "@oak_crates_index//:prost",
-        "@oak_crates_index//:prost-types",
-        "@oak_crates_index//:rand",
-        "@oak_crates_index//:serde_json",
-        "@oak_crates_index//:tempfile",
-        "@oak_crates_index//:tokio",
-        "@oak_crates_index//:tokio-stream",
-        "@oak_crates_index//:tonic",
-    ],
-)
-
-rust_library(
     name = "private_memory_server_lib",
     srcs = [
         "src/lib.rs",
     ],
     deps = [
-        ":app",
-        ":app_config",
-        ":database",
         ":encryption",
         ":external_db_client",
         ":log",
         ":metrics",
+        "//app",
+        "//database",
     ],
 )
 
@@ -226,8 +167,8 @@ cc_test(
 )
 
 rust_test(
-    name = "standalone_test",
-    srcs = ["test/standalone_test.rs"],
+    name = "server_e2e_test",
+    srcs = ["test/server_e2e_test.rs"],
     proc_macro_deps = ["@oak_crates_index//:async-trait"],
     deps = [
         ":client",
@@ -247,9 +188,23 @@ rust_test(
         "@oak_crates_index//:futures-util",
         "@oak_crates_index//:log",
         "@oak_crates_index//:prost",
+        "@oak_crates_index//:prost-types",
         "@oak_crates_index//:serde_json",
         "@oak_crates_index//:tokio",
         "@oak_crates_index//:tonic",
+    ],
+)
+
+rust_test(
+    name = "proto_serialization_test",
+    srcs = ["test/proto_serialization_test.rs"],
+    deps = [
+        "//proto:sealed_memory_rust_proto",
+        "@oak_crates_index//:env_logger",
+        "@oak_crates_index//:log",
+        "@oak_crates_index//:prost",
+        "@oak_crates_index//:prost-types",
+        "@oak_crates_index//:serde_json",
     ],
 )
 
@@ -275,9 +230,36 @@ rust_test(
         "@oak_crates_index//:futures-util",
         "@oak_crates_index//:log",
         "@oak_crates_index//:prost",
+        "@oak_crates_index//:prost-types",
         "@oak_crates_index//:serde_json",
         "@oak_crates_index//:tokio",
         "@oak_crates_index//:tonic",
+    ],
+)
+
+rust_test(
+    name = "text_search_test",
+    srcs = ["test/text_search_test.rs"],
+    deps = [
+        "//database",
+        "//proto:sealed_memory_rust_proto",
+        "@oak_crates_index//:anyhow",
+        "@oak_crates_index//:googletest",
+        "@oak_crates_index//:prost-types",
+        "@oak_crates_index//:tempfile",
+    ],
+)
+
+rust_test(
+    name = "embedding_search_test",
+    srcs = ["test/embedding_search_test.rs"],
+    deps = [
+        "//database",
+        "//proto:sealed_memory_rust_proto",
+        "@oak_crates_index//:anyhow",
+        "@oak_crates_index//:googletest",
+        "@oak_crates_index//:prost-types",
+        "@oak_crates_index//:tempfile",
     ],
 )
 

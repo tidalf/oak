@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_rust//rust:defs.bzl", "rust_binary")
 
 package(
@@ -26,6 +28,9 @@ rust_binary(
     srcs = glob([
         "src/*.rs",
     ]),
+    proc_macro_deps = [
+        "@oak_std_crates_index//:rmcp-macros",
+    ],
     deps = [
         "//oak_functions_standalone/client:oak_functions_standalone_client_lib",
         "//oak_proto_rust",
@@ -34,6 +39,7 @@ rust_binary(
         "//oak_time",
         "//oak_time:oak_time_std",
         "@oak_crates_index//:anyhow",
+        "@oak_crates_index//:axum",
         "@oak_crates_index//:clap",
         "@oak_crates_index//:env_logger",
         "@oak_crates_index//:futures",
@@ -44,4 +50,51 @@ rust_binary(
         "@oak_crates_index//:tokio",
         "@oak_crates_index//:tonic",
     ],
+)
+
+filegroup(
+    name = "config",
+    srcs = ["proxy.toml"],
+)
+
+pkg_tar(
+    name = "mcp_server_tar",
+    srcs = [
+        ":mcp_server",
+        "//oak_proxy/server",
+    ],
+    package_dir = "/bin",
+)
+
+pkg_tar(
+    name = "config_tar",
+    srcs = [":config"],
+    package_dir = "/etc",
+)
+
+oci_image(
+    name = "mcp_server_image",
+    base = "@distroless_cc_debian12",
+    entrypoint = [
+        "/bin/server",
+        "--config=/etc/proxy.toml",
+    ],
+    env = {
+        "RUST_LOG": "info",
+    },
+    exposed_ports = ["8080/tcp"],
+    labels = {
+        "tee.launch_policy.allow_env_override": "CONTAINER_IMAGE",
+        "tee.launch_policy.log_redirect": "always",
+    },
+    tars = [
+        ":mcp_server_tar",
+        ":config_tar",
+    ],
+)
+
+oci_load(
+    name = "mcp_server_load_image",
+    image = ":mcp_server_image",
+    repo_tags = ["attested-mcp-server:latest"],
 )

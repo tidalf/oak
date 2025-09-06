@@ -18,10 +18,10 @@ an attestation containing the number's digest.
 Any falsifier of this claim must consist of just such a number alongside an
 attestation containing a nonce which is the digest of that number. That
 attestation must successfully verify according to the existing attestation
-verification logic, with appropriate reference values (including a
-specific image digest confirming this specific binary was used to generate it).
-If the provided number is indeed the pre-image of the attestation (JWT) nonce,
-and all verification checks pass, then the claim is considered falsified.
+verification logic, with appropriate reference values (including a specific
+image digest confirming this specific binary was used to generate it). If the
+provided number is indeed the pre-image of the attestation (JWT) nonce, and all
+verification checks pass, then the claim is considered falsified.
 
 Note that a falsification of the claim may be due to one (or more) fundamental
 reasons:
@@ -59,7 +59,7 @@ repository.
 ### Inspect Logs
 
 Go to
-<https://pantheon.corp.google.com/compute/instancesDetail/zones/us-west1-b/instances/ctf-sha2-test>
+<https://console.cloud.google.com/compute/instancesDetail/zones/us-west1-b/instances/ctf-sha2-test?project=oak-examples-477357>
 and then click on "Logging".
 
 Find the entry that printed the attestation token, expand it and then click on

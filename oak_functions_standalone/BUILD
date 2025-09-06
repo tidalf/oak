@@ -17,6 +17,7 @@
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel:defs.bzl", "oci_runtime_bundle")
 
 package(
     default_visibility = ["//:internal"],
@@ -117,9 +118,6 @@ pkg_tar(
     name = "oak_functions_standalone_tar",
     srcs = [
         ":oak_functions_standalone",
-        "//oak_functions/examples/echo",
-        "//oak_functions/examples/key_value_lookup",
-        "//oak_functions_standalone/testdata:fake_weather_data.binarypb",
     ],
     package_dir = "/usr/local/bin",
 )
@@ -129,8 +127,14 @@ oci_image(
     base = "@distroless_cc_debian12",
     entrypoint = ["/usr/local/bin/oak_functions_standalone"],
     exposed_ports = ["8080/tcp"],
+    # https://cloud.google.com/confidential-computing/confidential-space/docs/create-customize-workloads#launch_policies
     labels = {
+        # CMD arguments will be limited to the oak_functions_standalone
+        # executable, specified in the ENTRYPOINT.
+        # See https://docs.docker.com/reference/dockerfile/#cmd
         "tee.launch_policy.allow_cmd_override": "true",
+        # Logs from the open-sourced code are permitted.
+        "tee.launch_policy.log_redirect": "always",
     },
     tars = [":oak_functions_standalone_tar"],
 )
@@ -139,4 +143,9 @@ oci_load(
     name = "oak_functions_standalone_load_image",
     image = ":oak_functions_standalone_image",
     repo_tags = ["oak_functions_standalone:latest"],
+)
+
+oci_runtime_bundle(
+    name = "bundle",
+    image = ":oak_functions_standalone_image",
 )

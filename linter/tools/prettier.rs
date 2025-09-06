@@ -25,7 +25,7 @@ impl linter::LinterTool for PrettierTool {
     const SUPPORTS_FIX: bool = true;
 
     fn accept(&self, path: &Path) -> anyhow::Result<bool> {
-        Ok(has_extension(path, &["yaml", "yml", "html", "htm", "js", "ts", "tsx", "msj"]))
+        Ok(has_extension(path, &["yaml", "yml", "html", "htm", "js", "ts", "tsx", "msj", "md"]))
     }
 
     fn check(&self, path: &Path) -> anyhow::Result<linter::Outcome> {

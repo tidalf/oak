@@ -21,6 +21,7 @@ syntax = "proto3";
 
 package oak.private_memory;
 
+import "google/protobuf/timestamp.proto";
 import "proto/session/session.proto";
 
 message Embedding {
@@ -38,6 +39,8 @@ message MemoryValue {
     int64 int64_val = 2;
     string string_val = 3;
   }
+
+  string mime_type = 4;
 }
 
 message MemoryContent {
@@ -50,6 +53,22 @@ message Memory {
   repeated string tags = 3;
   repeated Embedding embeddings = 4;
   MemoryContent content = 5;
+  // The time when the memory is uploaded. Set by backend.
+  google.protobuf.Timestamp created_timestamp = 6;
+  // The time when the event described by the data happens. Should be
+  // set by the client. If not set, the `created_timestamp` will be
+  // used.
+  google.protobuf.Timestamp event_timestamp = 7;
+}
+
+enum MemoryField {
+  UNKNOWN = 0;            // Default value, should not be used.
+  ID = 1;                 // The 'id' field of the Memory message.
+  TAGS = 2;               // The 'tags' field.
+  EMBEDDINGS = 3;         // The 'embeddings' field.
+  CONTENT = 4;            // The 'content' field .
+  CREATED_TIMESTAMP = 5;  // The 'created_timestamp' field.
+  EVENT_TIMESTAMP = 6;    // The 'event_timestamp' field.
 }
 
 message AddMemoryRequest {
@@ -165,18 +184,45 @@ message EmbeddingQuery {
   ScoreRange score_range = 3;
 }
 
-message SearchMemoryQuery {
-  oneof clause {
-    EmbeddingQuery embedding_query = 1;
+enum MatchType {
+  MATCH_TYPE_UNSPECIFIED = 0;
+  MATCH_TYPE_EQUAL = 1;
+  MATCH_TYPE_GTE = 2;
+  MATCH_TYPE_LTE = 3;
+  MATCH_TYPE_LT = 4;
+  MATCH_TYPE_GT = 5;
+}
+
+// Represents a single clause in a query.
+message TextQuery {
+  MatchType match_type = 1;
+  // The field to search within (e.g., "tags", "id").
+  MemoryField field = 2;
+  // The value to search for in the specified 'field'.
+  oneof value {
+    string string_val = 3;
+    google.protobuf.Timestamp timestamp_val = 4;
   }
 }
 
-enum MemoryField {
-  UNKNOWN = 0;     // Default value, should not be used.
-  ID = 1;          // The 'id' field of the Memory message.
-  TAGS = 2;        // The 'tags' field.
-  EMBEDDINGS = 3;  // The 'embeddings' field.
-  CONTENT = 4;     // The 'content' field .
+// Logical operator for combining query clauses.
+enum QueryOperator {
+  QUERY_OPERATOR_UNSPECIFIED = 0;
+  QUERY_OPERATOR_AND = 1;  // All clauses must match.
+  QUERY_OPERATOR_OR = 2;   // Any clause can match.
+}
+
+message SearchMemoryQuery {
+  oneof clause {
+    EmbeddingQuery embedding_query = 1;
+    TextQuery text_query = 2;
+    QueryClauses query_clauses = 3;
+  }
+}
+
+message QueryClauses {
+  QueryOperator query_operator = 1;
+  repeated SearchMemoryQuery clauses = 2;
 }
 
 // Defines which parts of the Memory object to return.
@@ -207,6 +253,7 @@ message SearchMemoryRequest {
 
 message SearchMemoryResultItem {
   Memory memory = 1;
+  float score = 2;
 }
 
 message SearchMemoryResponse {

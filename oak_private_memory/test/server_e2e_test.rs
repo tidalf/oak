@@ -20,13 +20,11 @@ use std::{
 
 use anyhow::Result;
 use client::{PrivateMemoryClient, SerializationFormat};
-use log::info;
-use private_memory_server_lib::{
-    app::{app_service, run_persistence_service},
-    app_config::ApplicationConfig,
+use private_memory_server_lib::app::{self, run_persistence_service, ApplicationConfig};
+use sealed_memory_rust_proto::{
+    oak::private_memory::{text_query, MatchType, TextQuery},
+    prelude::v1::*,
 };
-use prost::Message;
-use sealed_memory_rust_proto::prelude::v1::*;
 use tokio::{net::TcpListener, sync::mpsc as tokio_mpsc};
 
 fn init_logging() {
@@ -57,7 +55,7 @@ async fn start_server() -> Result<(
     let persistence_join_handle = tokio::spawn(run_persistence_service(persistence_rx));
     Ok((
         addr,
-        tokio::spawn(app_service::create(listener, application_config, metrics, persistence_tx)),
+        tokio::spawn(app::service::create(listener, application_config, metrics, persistence_tx)),
         tokio::spawn(private_memory_test_database_server_lib::service::create(db_listener)),
         persistence_join_handle,
     ))
@@ -80,17 +78,22 @@ async fn test_add_get_reset_memory_all_modes() {
             "text_data".to_string(),
             MemoryValue {
                 value: Some(memory_value::Value::BytesVal("this is a test".as_bytes().to_vec())),
+                ..Default::default()
             },
         );
         contents_map.insert(
             "string_data".to_string(),
             MemoryValue {
                 value: Some(memory_value::Value::StringVal("this is a test string".to_string())),
+                ..Default::default()
             },
         );
         contents_map.insert(
             "int64_data".to_string(),
-            MemoryValue { value: Some(memory_value::Value::Int64Val(123456789)) },
+            MemoryValue {
+                value: Some(memory_value::Value::Int64Val(123456789)),
+                ..Default::default()
+            },
         );
         let memory_to_add = Memory {
             id: "".to_string(),
@@ -138,58 +141,77 @@ async fn test_add_get_reset_memory_all_modes() {
     }
 }
 
-#[test]
-fn proto_serialization_test() {
-    init_logging();
-    let request =
-        KeySyncRequest { pm_uid: "12345678910".to_string(), key_encryption_key: vec![1, 2, 3] };
-    info!("Serailization {:?}", serde_json::to_string(&request));
-    let json_str = r#"{"keyEncryptionKey":"AQID","pmUid":"12345678910"}"#;
-    let request_from_string_num = serde_json::from_str::<KeySyncRequest>(json_str).unwrap();
-    assert_eq!(request.encode_to_vec(), request_from_string_num.encode_to_vec());
+#[tokio::test(flavor = "multi_thread")]
+async fn test_standalone_text_query() {
+    let (addr, _server_join_handle, _db_join_handle, _persistence_join_handle) =
+        start_server().await.unwrap();
+    let url = format!("http://{}", addr);
+    let pm_uid = "test_standalone_text_query_user";
 
-    let key_sync_response = KeySyncResponse { status: key_sync_response::Status::Success as i32 };
-    let json_str2 = r#"{"status":"SUCCESS"}"#;
-    let key_sync_response_from_string_num =
-        serde_json::from_str::<KeySyncResponse>(json_str2).unwrap();
-    assert_eq!(
-        key_sync_response.encode_to_vec(),
-        key_sync_response_from_string_num.encode_to_vec()
-    );
-    let json_str3 = r#"{"status": 1}"#;
-    let key_sync_response_from_string_num =
-        serde_json::from_str::<KeySyncResponse>(json_str3).unwrap();
-    assert_eq!(
-        key_sync_response.encode_to_vec(),
-        key_sync_response_from_string_num.encode_to_vec()
-    );
+    for &format in [SerializationFormat::BinaryProto, SerializationFormat::Json].iter() {
+        let mut client =
+            PrivateMemoryClient::create_with_start_session(&url, pm_uid, TEST_EK, format)
+                .await
+                .unwrap();
 
-    // Test user registration response
-    let user_registration_response = UserRegistrationResponse {
-        status: user_registration_response::Status::UserAlreadyExists as i32,
-        ..Default::default()
-    };
-    let json_str4 = r#"{"status":"USER_ALREADY_EXISTS"}"#;
-    let user_registration_response_from_string_num =
-        serde_json::from_str::<UserRegistrationResponse>(json_str4).unwrap();
-    assert_eq!(
-        user_registration_response.encode_to_vec(),
-        user_registration_response_from_string_num.encode_to_vec()
-    );
+        let memory1 = Memory {
+            id: "memory1".to_string(),
+            created_timestamp: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
+            ..Default::default()
+        };
+        client.add_memory(memory1).await.unwrap();
 
-    // Test ResultMask
-    let result_mask = ResultMask {
-        include_fields: vec![MemoryField::Id as i32, MemoryField::Tags as i32],
-        include_content_fields: vec!["content_key_str".to_string()],
-    };
-    let json_str5 =
-        r#"{"includeFields":["ID", "TAGS"],"includeContentFields":["content_key_str"]}"#;
-    let result_mask_from_string_num = serde_json::from_str::<ResultMask>(json_str5).unwrap();
-    assert_eq!(result_mask.encode_to_vec(), result_mask_from_string_num.encode_to_vec());
+        let memory2 = Memory {
+            id: "memory2".to_string(),
+            created_timestamp: Some(prost_types::Timestamp { seconds: 200, nanos: 0 }),
+            ..Default::default()
+        };
+        client.add_memory(memory2).await.unwrap();
 
-    // Test MemoryValue with int64_val
-    let memory_value = MemoryValue { value: Some(memory_value::Value::Int64Val(12345)) };
-    let json_str6 = r#"{"int64Val":"12345"}"#;
-    let memory_value_from_string_num = serde_json::from_str::<MemoryValue>(json_str6).unwrap();
-    assert_eq!(memory_value.encode_to_vec(), memory_value_from_string_num.encode_to_vec());
+        let memory3 = Memory {
+            id: "memory3".to_string(),
+            created_timestamp: Some(prost_types::Timestamp { seconds: 300, nanos: 0 }),
+            ..Default::default()
+        };
+        client.add_memory(memory3).await.unwrap();
+
+        // Test timestamp filtering
+        let gte_query = TextQuery {
+            field: MemoryField::CreatedTimestamp as i32,
+            match_type: MatchType::Gte as i32,
+            value: Some(text_query::Value::TimestampVal(prost_types::Timestamp {
+                seconds: 200,
+                nanos: 0,
+            })),
+        };
+        let query = SearchMemoryQuery {
+            clause: Some(
+                sealed_memory_rust_proto::oak::private_memory::search_memory_query::Clause::TextQuery(
+                    gte_query,
+                ),
+            ),
+        };
+        let response = client.search_memory(query, 10, None, "").await.unwrap();
+        assert_eq!(response.results.len(), 2);
+        let ids: Vec<String> = response.results.into_iter().map(|r| r.memory.unwrap().id).collect();
+        assert!(ids.contains(&"memory2".to_string()));
+        assert!(ids.contains(&"memory3".to_string()));
+
+        // Test ID filtering
+        let eq_query = TextQuery {
+            field: MemoryField::Id as i32,
+            match_type: MatchType::Equal as i32,
+            value: Some(text_query::Value::StringVal("memory1".to_string())),
+        };
+        let query = SearchMemoryQuery {
+            clause: Some(
+                sealed_memory_rust_proto::oak::private_memory::search_memory_query::Clause::TextQuery(
+                    eq_query,
+                ),
+            ),
+        };
+        let response = client.search_memory(query, 10, None, "").await.unwrap();
+        assert_eq!(response.results.len(), 1);
+        assert_eq!(response.results[0].memory.as_ref().unwrap().id, "memory1");
+    }
 }

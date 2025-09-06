@@ -16,15 +16,17 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Context;
+use axum::Router;
 use clap::Parser;
-use log::{error, info, warn};
+use futures::Future;
+use log::{info, warn};
 use oak_functions_standalone_client_lib::OakFunctionsClient;
 use oak_session::attestation::AttestationType;
 use oak_time::Clock;
 use oak_time_std::clock::FrozenSystemTimeClock;
-use prost::Message;
 use rmcp::{
+    handler::server::{router::tool::ToolRouter, tool::Parameters},
     model::{
         CallToolResult, Content, Implementation, InitializeRequestParam, InitializeResult,
         ProtocolVersion, ServerCapabilities, ServerInfo,
@@ -32,33 +34,47 @@ use rmcp::{
     schemars,
     serde_json::json,
     service::RequestContext,
-    tool,
-    transport::stdio,
-    Error as McpError, RoleServer, ServerHandler, ServiceExt,
+    tool, tool_handler, tool_router,
+    transport::streamable_http_server::{
+        session::local::LocalSessionManager, StreamableHttpService,
+    },
+    ErrorData, RoleServer, ServerHandler,
 };
+use serde::Deserialize;
+use tokio::net::TcpListener;
 
 #[derive(Parser, Debug)]
 pub struct Args {
+    #[arg(short, long, default_value = "0.0.0.0:8081")]
+    listen_address: String,
     #[arg(short, long)]
     tool_url: String,
-    #[arg(short, long)]
-    attestation_output_path: Option<String>,
+    #[arg(long, default_value_t = false)]
+    insecure_attestation: bool,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct WeatherService {
-    pub tool_url: String,
-    pub attestation_output_path: Option<String>,
+    tool_url: String,
+    insecure_attestation: bool,
+    tool_router: ToolRouter<Self>,
 }
 
-#[tool(tool_box)]
-impl WeatherService {
-    pub fn new(tool_url: &str) -> Self {
-        Self { tool_url: tool_url.to_string(), attestation_output_path: None }
-    }
+#[derive(Deserialize, schemars::JsonSchema)]
+struct GetWeatherRequest {
+    #[schemars(description = "Latitude")]
+    latitude: f32,
+    #[schemars(description = "Longitude")]
+    longitude: f32,
+}
 
-    pub fn set_attestation_output_path(&mut self, attestation_output_path: &str) {
-        self.attestation_output_path = Some(attestation_output_path.to_string())
+impl WeatherService {
+    pub fn new(tool_url: &str, insecure_attestation: bool) -> Self {
+        Self {
+            tool_url: tool_url.to_string(),
+            insecure_attestation,
+            tool_router: Self::tool_router(),
+        }
     }
 
     pub async fn send_tool_request(&self, request_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
@@ -68,23 +84,24 @@ impl WeatherService {
 
         let mut client = OakFunctionsClient::create(
             &self.tool_url,
-            AttestationType::PeerUnidirectional,
+            if self.insecure_attestation {
+                AttestationType::Unattested
+            } else {
+                AttestationType::PeerUnidirectional
+            },
             clock.clone(),
         )
         .await
         .context("couldn't connect to server")?;
 
-        if let Some(attestation_output_path) = &self.attestation_output_path {
-            let attestation = client.fetch_attestation(self.tool_url.clone(), clock)?;
-            std::fs::write(attestation_output_path, attestation.encode_to_vec())?;
-            info!("Writing attestation report to: {}", attestation_output_path);
-        }
-
         client.invoke(request_bytes).await.context("couldn't send request")
     }
+}
 
+#[tool_router]
+impl WeatherService {
     #[tool(description = "Provides current user coordinates")]
-    fn get_user_location(&self) -> Result<CallToolResult, McpError> {
+    fn get_user_location(&self) -> Result<CallToolResult, ErrorData> {
         let result = json!({
             "status": "success",
             "coordinates": {
@@ -101,13 +118,9 @@ impl WeatherService {
     )]
     async fn get_weather(
         &self,
-        #[tool(param)]
-        #[schemars(description = "Latitude")]
-        latitude: f32,
-        #[tool(param)]
-        #[schemars(description = "Longitude")]
-        longitude: f32,
-    ) -> Result<CallToolResult, McpError> {
+        params: Parameters<GetWeatherRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let Parameters(GetWeatherRequest { latitude, longitude }) = params;
         info!("Requested weather for ({}, {})", latitude, longitude);
 
         info!("Sending a tool request at: {}", self.tool_url);
@@ -138,11 +151,11 @@ impl WeatherService {
     }
 }
 
-#[tool(tool_box)]
+#[tool_handler]
 impl ServerHandler for WeatherService {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            protocol_version: ProtocolVersion::V_2024_11_05,
+            protocol_version: ProtocolVersion::V_2025_06_18,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation::from_build_env(),
             instructions: Some(
@@ -155,7 +168,7 @@ impl ServerHandler for WeatherService {
         &self,
         _request: InitializeRequestParam,
         _context: RequestContext<RoleServer>,
-    ) -> Result<InitializeResult, McpError> {
+    ) -> Result<InitializeResult, ErrorData> {
         Ok(self.get_info())
     }
 }
@@ -165,22 +178,26 @@ async fn main() -> anyhow::Result<()> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info")
     }
-    if std::env::var("RUST_BACKTRACE").is_err() {
-        std::env::set_var("RUST_BACKTRACE", "1")
-    }
     env_logger::init();
-    let cli = Args::parse();
+    let args = Args::parse();
 
     info!("Starting weather service");
-    let mut service = WeatherService::new(&cli.tool_url);
-    if let Some(attestation_output_path) = &cli.attestation_output_path {
-        service.set_attestation_output_path(attestation_output_path);
-    }
-    let service = service.serve(stdio()).await.inspect_err(|e| {
-        error!("serving error: {:?}", e);
-    })?;
-    info!("Initialized weather service");
-    service.waiting().await?;
+    let service = WeatherService::new(&args.tool_url, args.insecure_attestation);
+    let http_service = StreamableHttpService::new(
+        move || Ok(service.clone()),
+        LocalSessionManager::default().into(),
+        Default::default(),
+    );
+
+    let router = Router::new().nest_service("/mcp", http_service);
+
+    let tcp_listener = TcpListener::bind(&args.listen_address).await?;
+    info!("listening on {}", &args.listen_address);
+    axum::serve(tcp_listener, router)
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c().await.unwrap();
+        })
+        .await?;
     info!("Stopping weather service");
     Ok(())
 }

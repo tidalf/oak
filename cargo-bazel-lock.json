@@ -1,5 +1,5 @@
 {
-  "checksum": "686ee3a9a146f612a65bea8143aebfc724250a850f0dd75ac3fd7cf14bbbe60c",
+  "checksum": "f392ebd1a369e9ec60864844e3a5da99379d92a1e503fa6d1c6fd9655a8b7fae",
   "crates": {
     "acpi 5.2.0": {
       "name": "acpi",
@@ -1723,6 +1723,22 @@
         "compile_data_glob": [
           "**"
         ],
+        "crate_features": {
+          "common": [
+            "default",
+            "form",
+            "http1",
+            "http2",
+            "json",
+            "matched-path",
+            "original-uri",
+            "query",
+            "tokio",
+            "tower-log",
+            "tracing"
+          ],
+          "selects": {}
+        },
         "deps": {
           "common": [
             {
@@ -1748,6 +1764,14 @@
             {
               "id": "http-body-util 0.1.3",
               "target": "http_body_util"
+            },
+            {
+              "id": "hyper 1.6.0",
+              "target": "hyper"
+            },
+            {
+              "id": "hyper-util 0.1.14",
+              "target": "hyper_util"
             },
             {
               "id": "itoa 1.0.15",
@@ -1778,8 +1802,24 @@
               "target": "serde"
             },
             {
+              "id": "serde_json 1.0.140",
+              "target": "serde_json"
+            },
+            {
+              "id": "serde_path_to_error 0.1.17",
+              "target": "serde_path_to_error"
+            },
+            {
+              "id": "serde_urlencoded 0.7.1",
+              "target": "serde_urlencoded"
+            },
+            {
               "id": "sync_wrapper 1.0.2",
               "target": "sync_wrapper"
+            },
+            {
+              "id": "tokio 1.45.1",
+              "target": "tokio"
             },
             {
               "id": "tower 0.5.2",
@@ -1792,6 +1832,10 @@
             {
               "id": "tower-service 0.3.3",
               "target": "tower_service"
+            },
+            {
+              "id": "tracing 0.1.41",
+              "target": "tracing"
             }
           ],
           "selects": {}
@@ -1847,6 +1891,12 @@
         "compile_data_glob": [
           "**"
         ],
+        "crate_features": {
+          "common": [
+            "tracing"
+          ],
+          "selects": {}
+        },
         "deps": {
           "common": [
             {
@@ -1888,6 +1938,10 @@
             {
               "id": "tower-service 0.3.3",
               "target": "tower_service"
+            },
+            {
+              "id": "tracing 0.1.41",
+              "target": "tracing"
             }
           ],
           "selects": {}
@@ -6422,6 +6476,69 @@
       ],
       "license_file": "LICENSE"
     },
+    "darling 0.21.3": {
+      "name": "darling",
+      "version": "0.21.3",
+      "package_url": "https://github.com/TedDriggs/darling",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/darling/0.21.3/download",
+          "sha256": "9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "darling",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "darling",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "default",
+            "suggestions"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "darling_core 0.21.3",
+              "target": "darling_core"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "proc_macro_deps": {
+          "common": [
+            {
+              "id": "darling_macro 0.21.3",
+              "target": "darling_macro"
+            }
+          ],
+          "selects": {}
+        },
+        "version": "0.21.3"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": "LICENSE"
+    },
     "darling_core 0.20.11": {
       "name": "darling_core",
       "version": "0.20.11",
@@ -6496,6 +6613,80 @@
       ],
       "license_file": "LICENSE"
     },
+    "darling_core 0.21.3": {
+      "name": "darling_core",
+      "version": "0.21.3",
+      "package_url": "https://github.com/TedDriggs/darling",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/darling_core/0.21.3/download",
+          "sha256": "1247195ecd7e3c85f83c8d2a366e4210d588e802133e1e355180a9870b517ea4"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "darling_core",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "darling_core",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "strsim",
+            "suggestions"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "fnv 1.0.7",
+              "target": "fnv"
+            },
+            {
+              "id": "ident_case 1.0.1",
+              "target": "ident_case"
+            },
+            {
+              "id": "proc-macro2 1.0.95",
+              "target": "proc_macro2"
+            },
+            {
+              "id": "quote 1.0.40",
+              "target": "quote"
+            },
+            {
+              "id": "strsim 0.11.1",
+              "target": "strsim"
+            },
+            {
+              "id": "syn 2.0.104",
+              "target": "syn"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.21.3"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": "LICENSE"
+    },
     "darling_macro 0.20.11": {
       "name": "darling_macro",
       "version": "0.20.11",
@@ -6544,6 +6735,61 @@
         },
         "edition": "2021",
         "version": "0.20.11"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": "LICENSE"
+    },
+    "darling_macro 0.21.3": {
+      "name": "darling_macro",
+      "version": "0.21.3",
+      "package_url": "https://github.com/TedDriggs/darling",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/darling_macro/0.21.3/download",
+          "sha256": "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
+        }
+      },
+      "targets": [
+        {
+          "ProcMacro": {
+            "crate_name": "darling_macro",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "darling_macro",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "darling_core 0.21.3",
+              "target": "darling_core"
+            },
+            {
+              "id": "quote 1.0.40",
+              "target": "quote"
+            },
+            {
+              "id": "syn 2.0.104",
+              "target": "syn"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.21.3"
       },
       "license": "MIT",
       "license_ids": [
@@ -7198,6 +7444,10 @@
               "target": "atomic_refcell"
             },
             {
+              "id": "axum 0.7.9",
+              "target": "axum"
+            },
+            {
               "id": "base64 0.21.7",
               "target": "base64"
             },
@@ -7410,6 +7660,10 @@
               "target": "once_cell"
             },
             {
+              "id": "openssl 0.10.73",
+              "target": "openssl"
+            },
+            {
               "id": "opentelemetry 0.26.0",
               "target": "opentelemetry"
             },
@@ -7530,7 +7784,7 @@
               "target": "rlsf"
             },
             {
-              "id": "rmcp 0.1.5",
+              "id": "rmcp 0.6.0",
               "target": "rmcp"
             },
             {
@@ -7750,6 +8004,10 @@
             {
               "id": "prost-derive 0.13.5",
               "target": "prost_derive"
+            },
+            {
+              "id": "rmcp-macros 0.6.0",
+              "target": "rmcp_macros"
             },
             {
               "id": "strum_macros 0.25.3",
@@ -9491,6 +9749,93 @@
         "Zlib"
       ],
       "license_file": "LICENSE"
+    },
+    "foreign-types 0.3.2": {
+      "name": "foreign-types",
+      "version": "0.3.2",
+      "package_url": "https://github.com/sfackler/foreign-types",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/foreign-types/0.3.2/download",
+          "sha256": "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "foreign_types",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "foreign_types",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "foreign-types-shared 0.1.1",
+              "target": "foreign_types_shared"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2015",
+        "version": "0.3.2"
+      },
+      "license": "MIT/Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
+    },
+    "foreign-types-shared 0.1.1": {
+      "name": "foreign-types-shared",
+      "version": "0.1.1",
+      "package_url": "https://github.com/sfackler/foreign-types",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/foreign-types-shared/0.1.1/download",
+          "sha256": "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "foreign_types_shared",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "foreign_types_shared",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "edition": "2015",
+        "version": "0.1.1"
+      },
+      "license": "MIT/Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
     },
     "form_urlencoded 1.2.1": {
       "name": "form_urlencoded",
@@ -14912,6 +15257,12 @@
         "compile_data_glob": [
           "**"
         ],
+        "crate_features": {
+          "common": [
+            "openssl"
+          ],
+          "selects": {}
+        },
         "deps": {
           "common": [
             {
@@ -14929,6 +15280,10 @@
             {
               "id": "hmac 0.12.1",
               "target": "hmac"
+            },
+            {
+              "id": "openssl 0.10.73",
+              "target": "openssl"
             },
             {
               "id": "serde 1.0.219",
@@ -18190,6 +18545,182 @@
       ],
       "license_file": "LICENSE-APACHE"
     },
+    "openssl 0.10.73": {
+      "name": "openssl",
+      "version": "0.10.73",
+      "package_url": "https://github.com/sfackler/rust-openssl",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/openssl/0.10.73/download",
+          "sha256": "8505734d46c8ab1e19a1dce3aef597ad87dcb4c37e7188231769bd6bd51cebf8"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "openssl",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_build",
+            "crate_root": "build.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "openssl",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "default"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "bitflags 2.9.1",
+              "target": "bitflags"
+            },
+            {
+              "id": "cfg-if 1.0.1",
+              "target": "cfg_if"
+            },
+            {
+              "id": "foreign-types 0.3.2",
+              "target": "foreign_types"
+            },
+            {
+              "id": "libc 0.2.174",
+              "target": "libc"
+            },
+            {
+              "id": "once_cell 1.21.3",
+              "target": "once_cell"
+            },
+            {
+              "id": "openssl 0.10.73",
+              "target": "build_script_build"
+            },
+            {
+              "id": "openssl-sys 0.9.109",
+              "target": "openssl_sys",
+              "alias": "ffi"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "proc_macro_deps": {
+          "common": [
+            {
+              "id": "openssl-macros 0.1.1",
+              "target": "openssl_macros"
+            }
+          ],
+          "selects": {}
+        },
+        "version": "0.10.73"
+      },
+      "build_script_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "compile_data_glob_excludes": [
+          "**/*.rs"
+        ],
+        "data_glob": [
+          "**"
+        ],
+        "link_deps": {
+          "common": [
+            {
+              "id": "openssl-sys 0.9.109",
+              "target": "openssl_sys",
+              "alias": "ffi"
+            }
+          ],
+          "selects": {}
+        }
+      },
+      "license": "Apache-2.0",
+      "license_ids": [
+        "Apache-2.0"
+      ],
+      "license_file": "LICENSE"
+    },
+    "openssl-macros 0.1.1": {
+      "name": "openssl-macros",
+      "version": "0.1.1",
+      "package_url": null,
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/openssl-macros/0.1.1/download",
+          "sha256": "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
+        }
+      },
+      "targets": [
+        {
+          "ProcMacro": {
+            "crate_name": "openssl_macros",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "openssl_macros",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "proc-macro2 1.0.95",
+              "target": "proc_macro2"
+            },
+            {
+              "id": "quote 1.0.40",
+              "target": "quote"
+            },
+            {
+              "id": "syn 2.0.104",
+              "target": "syn"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2018",
+        "version": "0.1.1"
+      },
+      "license": "MIT/Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
+    },
     "openssl-probe 0.1.6": {
       "name": "openssl-probe",
       "version": "0.1.6",
@@ -18228,6 +18759,98 @@
         "MIT"
       ],
       "license_file": "LICENSE-APACHE"
+    },
+    "openssl-sys 0.9.109": {
+      "name": "openssl-sys",
+      "version": "0.9.109",
+      "package_url": "https://github.com/sfackler/rust-openssl",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/openssl-sys/0.9.109/download",
+          "sha256": "90096e2e47630d78b7d1c20952dc621f957103f8bc2c8359ec81290d75238571"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "openssl_sys",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_main",
+            "crate_root": "build/main.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "openssl_sys",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "libc 0.2.174",
+              "target": "libc"
+            },
+            {
+              "id": "openssl-sys 0.9.109",
+              "target": "build_script_main"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.9.109"
+      },
+      "build_script_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "compile_data_glob_excludes": [
+          "**/*.rs"
+        ],
+        "data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "cc 1.2.27",
+              "target": "cc"
+            },
+            {
+              "id": "pkg-config 0.3.32",
+              "target": "pkg_config"
+            },
+            {
+              "id": "vcpkg 0.2.15",
+              "target": "vcpkg"
+            }
+          ],
+          "selects": {}
+        },
+        "links": "openssl"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": "LICENSE-MIT"
     },
     "opentelemetry 0.26.0": {
       "name": "opentelemetry",
@@ -23621,6 +24244,142 @@
       ],
       "license_file": "LICENSE"
     },
+    "ref-cast 1.0.24": {
+      "name": "ref-cast",
+      "version": "1.0.24",
+      "package_url": "https://github.com/dtolnay/ref-cast",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/ref-cast/1.0.24/download",
+          "sha256": "4a0ae411dbe946a674d89546582cea4ba2bb8defac896622d6496f14c23ba5cf"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "ref_cast",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_build",
+            "crate_root": "build.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "ref_cast",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "ref-cast 1.0.24",
+              "target": "build_script_build"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "proc_macro_deps": {
+          "common": [
+            {
+              "id": "ref-cast-impl 1.0.24",
+              "target": "ref_cast_impl"
+            }
+          ],
+          "selects": {}
+        },
+        "version": "1.0.24"
+      },
+      "build_script_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "compile_data_glob_excludes": [
+          "**/*.rs"
+        ],
+        "data_glob": [
+          "**"
+        ]
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
+    },
+    "ref-cast-impl 1.0.24": {
+      "name": "ref-cast-impl",
+      "version": "1.0.24",
+      "package_url": "https://github.com/dtolnay/ref-cast",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/ref-cast-impl/1.0.24/download",
+          "sha256": "1165225c21bff1f3bbce98f5a1f889949bc902d3575308cc7b0de30b4f6d27c7"
+        }
+      },
+      "targets": [
+        {
+          "ProcMacro": {
+            "crate_name": "ref_cast_impl",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "ref_cast_impl",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "proc-macro2 1.0.95",
+              "target": "proc_macro2"
+            },
+            {
+              "id": "quote 1.0.40",
+              "target": "quote"
+            },
+            {
+              "id": "syn 2.0.104",
+              "target": "syn"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "1.0.24"
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
+    },
     "regalloc2 0.10.2": {
       "name": "regalloc2",
       "version": "0.10.2",
@@ -24443,14 +25202,14 @@
       ],
       "license_file": null
     },
-    "rmcp 0.1.5": {
+    "rmcp 0.6.0": {
       "name": "rmcp",
-      "version": "0.1.5",
-      "package_url": "https://github.com/4t145/rmcp/",
+      "version": "0.6.0",
+      "package_url": "https://github.com/modelcontextprotocol/rust-sdk/",
       "repository": {
         "Http": {
-          "url": "https://static.crates.io/crates/rmcp/0.1.5/download",
-          "sha256": "33a0110d28bd076f39e14bfd5b0340216dd18effeb5d02b43215944cc3e5c751"
+          "url": "https://static.crates.io/crates/rmcp/0.6.0/download",
+          "sha256": "bb21cd3555f1059f27e4813827338dec44429a08ecd0011acc41d9907b160c00"
         }
       },
       "targets": [
@@ -24475,34 +25234,54 @@
         "crate_features": {
           "common": [
             "base64",
-            "default",
             "macros",
             "server",
+            "server-side-http",
+            "tower",
             "transport-async-rw",
-            "transport-io"
+            "transport-streamable-http-server",
+            "transport-streamable-http-server-session",
+            "transport-worker",
+            "uuid"
           ],
           "selects": {}
         },
         "deps": {
           "common": [
             {
-              "id": "base64 0.21.7",
+              "id": "base64 0.22.1",
               "target": "base64"
             },
             {
-              "id": "chrono 0.4.41",
-              "target": "chrono"
+              "id": "bytes 1.10.1",
+              "target": "bytes"
             },
             {
               "id": "futures 0.3.31",
               "target": "futures"
             },
             {
+              "id": "http 1.3.1",
+              "target": "http"
+            },
+            {
+              "id": "http-body 1.0.1",
+              "target": "http_body"
+            },
+            {
+              "id": "http-body-util 0.1.3",
+              "target": "http_body_util"
+            },
+            {
               "id": "pin-project-lite 0.2.16",
               "target": "pin_project_lite"
             },
             {
-              "id": "schemars 0.8.22",
+              "id": "rand 0.9.2",
+              "target": "rand"
+            },
+            {
+              "id": "schemars 1.0.4",
               "target": "schemars"
             },
             {
@@ -24514,6 +25293,10 @@
               "target": "serde_json"
             },
             {
+              "id": "sse-stream 0.2.1",
+              "target": "sse_stream"
+            },
+            {
               "id": "thiserror 2.0.12",
               "target": "thiserror"
             },
@@ -24522,15 +25305,40 @@
               "target": "tokio"
             },
             {
+              "id": "tokio-stream 0.1.17",
+              "target": "tokio_stream"
+            },
+            {
               "id": "tokio-util 0.7.15",
               "target": "tokio_util"
             },
             {
+              "id": "tower-service 0.3.3",
+              "target": "tower_service"
+            },
+            {
               "id": "tracing 0.1.41",
               "target": "tracing"
+            },
+            {
+              "id": "uuid 1.17.0",
+              "target": "uuid"
             }
           ],
-          "selects": {}
+          "selects": {
+            "cfg(all(target_family = \"wasm\", target_os = \"unknown\"))": [
+              {
+                "id": "chrono 0.4.41",
+                "target": "chrono"
+              }
+            ],
+            "cfg(not(all(target_family = \"wasm\", target_os = \"unknown\")))": [
+              {
+                "id": "chrono 0.4.41",
+                "target": "chrono"
+              }
+            ]
+          }
         },
         "edition": "2024",
         "proc_macro_deps": {
@@ -24540,13 +25348,13 @@
               "target": "paste"
             },
             {
-              "id": "rmcp-macros 0.1.5",
+              "id": "rmcp-macros 0.6.0",
               "target": "rmcp_macros"
             }
           ],
           "selects": {}
         },
-        "version": "0.1.5"
+        "version": "0.6.0"
       },
       "license": "MIT/Apache-2.0",
       "license_ids": [
@@ -24555,14 +25363,14 @@
       ],
       "license_file": null
     },
-    "rmcp-macros 0.1.5": {
+    "rmcp-macros 0.6.0": {
       "name": "rmcp-macros",
-      "version": "0.1.5",
-      "package_url": "https://github.com/4t145/rmcp/",
+      "version": "0.6.0",
+      "package_url": "https://github.com/modelcontextprotocol/rust-sdk/",
       "repository": {
         "Http": {
-          "url": "https://static.crates.io/crates/rmcp-macros/0.1.5/download",
-          "sha256": "a6e2b2fd7497540489fa2db285edd43b7ed14c49157157438664278da6e42a7a"
+          "url": "https://static.crates.io/crates/rmcp-macros/0.6.0/download",
+          "sha256": "ab5d16ae1ff3ce2c5fd86c37047b2869b75bec795d53a4b1d8257b15415a2354"
         }
       },
       "targets": [
@@ -24587,12 +25395,20 @@
         "deps": {
           "common": [
             {
+              "id": "darling 0.21.3",
+              "target": "darling"
+            },
+            {
               "id": "proc-macro2 1.0.95",
               "target": "proc_macro2"
             },
             {
               "id": "quote 1.0.40",
               "target": "quote"
+            },
+            {
+              "id": "serde_json 1.0.140",
+              "target": "serde_json"
             },
             {
               "id": "syn 2.0.104",
@@ -24602,7 +25418,7 @@
           "selects": {}
         },
         "edition": "2024",
-        "version": "0.1.5"
+        "version": "0.6.0"
       },
       "license": "MIT/Apache-2.0",
       "license_ids": [
@@ -25977,14 +26793,14 @@
       ],
       "license_file": "LICENSE.md"
     },
-    "schemars 0.8.22": {
+    "schemars 1.0.4": {
       "name": "schemars",
-      "version": "0.8.22",
+      "version": "1.0.4",
       "package_url": "https://github.com/GREsau/schemars",
       "repository": {
         "Http": {
-          "url": "https://static.crates.io/crates/schemars/0.8.22/download",
-          "sha256": "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
+          "url": "https://static.crates.io/crates/schemars/1.0.4/download",
+          "sha256": "82d20c4491bc164fa2f6c5d44565947a52ad80b9505d8e36f8d54c27c739fcd0"
         }
       },
       "targets": [
@@ -25992,18 +26808,6 @@
           "Library": {
             "crate_name": "schemars",
             "crate_root": "src/lib.rs",
-            "srcs": {
-              "allow_empty": true,
-              "include": [
-                "**/*.rs"
-              ]
-            }
-          }
-        },
-        {
-          "BuildScript": {
-            "crate_name": "build_script_build",
-            "crate_root": "build.rs",
             "srcs": {
               "allow_empty": true,
               "include": [
@@ -26020,21 +26824,28 @@
         ],
         "crate_features": {
           "common": [
+            "chrono04",
             "default",
             "derive",
-            "schemars_derive"
+            "schemars_derive",
+            "std"
           ],
           "selects": {}
         },
         "deps": {
           "common": [
             {
+              "id": "chrono 0.4.41",
+              "target": "chrono",
+              "alias": "chrono04"
+            },
+            {
               "id": "dyn-clone 1.0.19",
               "target": "dyn_clone"
             },
             {
-              "id": "schemars 0.8.22",
-              "target": "build_script_build"
+              "id": "ref-cast 1.0.24",
+              "target": "ref_cast"
             },
             {
               "id": "serde 1.0.219",
@@ -26051,24 +26862,13 @@
         "proc_macro_deps": {
           "common": [
             {
-              "id": "schemars_derive 0.8.22",
+              "id": "schemars_derive 1.0.4",
               "target": "schemars_derive"
             }
           ],
           "selects": {}
         },
-        "version": "0.8.22"
-      },
-      "build_script_attrs": {
-        "compile_data_glob": [
-          "**"
-        ],
-        "compile_data_glob_excludes": [
-          "**/*.rs"
-        ],
-        "data_glob": [
-          "**"
-        ]
+        "version": "1.0.4"
       },
       "license": "MIT",
       "license_ids": [
@@ -26076,14 +26876,14 @@
       ],
       "license_file": "LICENSE"
     },
-    "schemars_derive 0.8.22": {
+    "schemars_derive 1.0.4": {
       "name": "schemars_derive",
-      "version": "0.8.22",
+      "version": "1.0.4",
       "package_url": "https://github.com/GREsau/schemars",
       "repository": {
         "Http": {
-          "url": "https://static.crates.io/crates/schemars_derive/0.8.22/download",
-          "sha256": "32e265784ad618884abaea0600a9adf15393368d840e0222d101a072f3f7534d"
+          "url": "https://static.crates.io/crates/schemars_derive/1.0.4/download",
+          "sha256": "33d020396d1d138dc19f1165df7545479dcd58d93810dc5d646a16e55abefa80"
         }
       },
       "targets": [
@@ -26127,7 +26927,7 @@
           "selects": {}
         },
         "edition": "2021",
-        "version": "0.8.22"
+        "version": "1.0.4"
       },
       "license": "MIT",
       "license_ids": [
@@ -26871,6 +27671,7 @@
           "common": [
             "alloc",
             "default",
+            "raw_value",
             "std"
           ],
           "selects": {}
@@ -26913,6 +27714,58 @@
         "data_glob": [
           "**"
         ]
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
+    },
+    "serde_path_to_error 0.1.17": {
+      "name": "serde_path_to_error",
+      "version": "0.1.17",
+      "package_url": "https://github.com/dtolnay/path-to-error",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/serde_path_to_error/0.1.17/download",
+          "sha256": "59fab13f937fa393d08645bf3a84bdfe86e296747b506ada67bb15f10f218b2a"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "serde_path_to_error",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "serde_path_to_error",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "itoa 1.0.15",
+              "target": "itoa"
+            },
+            {
+              "id": "serde 1.0.219",
+              "target": "serde"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.17"
       },
       "license": "MIT OR Apache-2.0",
       "license_ids": [
@@ -28150,6 +29003,76 @@
         "version": "0.3.2"
       },
       "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": null
+    },
+    "sse-stream 0.2.1": {
+      "name": "sse-stream",
+      "version": "0.2.1",
+      "package_url": "https://github.com/4t145/sse-stream/",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/sse-stream/0.2.1/download",
+          "sha256": "eb4dc4d33c68ec1f27d386b5610a351922656e1fdf5c05bbaad930cd1519479a"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "sse_stream",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "sse_stream",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "default"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "bytes 1.10.1",
+              "target": "bytes"
+            },
+            {
+              "id": "futures-util 0.3.31",
+              "target": "futures_util"
+            },
+            {
+              "id": "http-body 1.0.1",
+              "target": "http_body"
+            },
+            {
+              "id": "http-body-util 0.1.3",
+              "target": "http_body_util"
+            },
+            {
+              "id": "pin-project-lite 0.2.16",
+              "target": "pin_project_lite"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.2.1"
+      },
+      "license": "MIT/Apache-2.0",
       "license_ids": [
         "Apache-2.0",
         "MIT"
@@ -31782,10 +32705,13 @@
             "__common",
             "futures-core",
             "futures-util",
+            "log",
+            "make",
             "pin-project-lite",
             "sync_wrapper",
             "timeout",
             "tokio",
+            "tracing",
             "util"
           ],
           "selects": {}
@@ -31819,6 +32745,10 @@
             {
               "id": "tower-service 0.3.3",
               "target": "tower_service"
+            },
+            {
+              "id": "tracing 0.1.41",
+              "target": "tracing"
             }
           ],
           "selects": {}
@@ -33347,7 +34277,18 @@
         "crate_features": {
           "common": [
             "default",
-            "std"
+            "rng",
+            "std",
+            "v4"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "getrandom 0.3.3",
+              "target": "getrandom"
+            }
           ],
           "selects": {}
         },
@@ -33355,6 +34296,45 @@
         "version": "1.17.0"
       },
       "license": "Apache-2.0 OR MIT",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
+    },
+    "vcpkg 0.2.15": {
+      "name": "vcpkg",
+      "version": "0.2.15",
+      "package_url": "https://github.com/mcgoo/vcpkg-rs",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/vcpkg/0.2.15/download",
+          "sha256": "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "vcpkg",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "vcpkg",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "edition": "2015",
+        "version": "0.2.15"
+      },
+      "license": "MIT/Apache-2.0",
       "license_ids": [
         "Apache-2.0",
         "MIT"
@@ -41478,6 +42458,7 @@
     "async-stream 0.3.6",
     "async-trait 0.1.88",
     "atomic_refcell 0.1.13",
+    "axum 0.7.9",
     "base64 0.21.7",
     "bitflags 2.9.1",
     "bitvec 1.0.1",
@@ -41532,6 +42513,7 @@
     "oci-client 0.15.0",
     "oci-spec 0.8.1",
     "once_cell 1.21.3",
+    "openssl 0.10.73",
     "opentelemetry 0.26.0",
     "opentelemetry-otlp 0.26.0",
     "opentelemetry-proto 0.26.1",
@@ -41564,7 +42546,8 @@
     "reqwest 0.12.22",
     "ring 0.17.14",
     "rlsf 0.2.1",
-    "rmcp 0.1.5",
+    "rmcp 0.6.0",
+    "rmcp-macros 0.6.0",
     "rpassword 7.4.0",
     "rsa 0.9.8",
     "rtnetlink 0.14.1",

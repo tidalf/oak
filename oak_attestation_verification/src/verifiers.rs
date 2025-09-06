@@ -16,13 +16,7 @@
 
 //! Provides verifiers based on verification policies.
 
-use alloc::{
-    boxed::Box,
-    string::{String, ToString},
-    sync::Arc,
-    vec,
-    vec::Vec,
-};
+use alloc::{boxed::Box, string::String, sync::Arc, vec, vec::Vec};
 
 use anyhow::Context;
 use hashbrown::HashSet;
@@ -38,19 +32,22 @@ use oak_proto_rust::oak::{
     },
     Variant,
 };
-use oak_sev_snp_attestation_report::AttestationReport;
 use oak_time::{Clock, Instant};
-use zerocopy::FromBytes;
 
 use crate::{
     policy::{
-        application::ApplicationPolicy, container::ContainerPolicy, firmware::FirmwarePolicy,
-        kernel::KernelPolicy, platform::AmdSevSnpPolicy, system::SystemPolicy,
+        application::ApplicationPolicy,
+        container::ContainerPolicy,
+        firmware::FirmwarePolicy,
+        kernel::KernelPolicy,
+        platform::{AmdSevSnpPolicy, InsecurePolicy},
+        system::SystemPolicy,
     },
-    util::hash_sha2_256,
+    results::get_initial_measurement,
     verifier::verify_dice_chain,
 };
 
+/// Attestation verifier that verifies an attestation rooted in AMD SEV-SNP.
 pub struct AmdSevSnpDiceAttestationVerifier {
     platform_policy: AmdSevSnpPolicy,
     firmware_policy: Box<dyn EventPolicy>,
@@ -69,11 +66,9 @@ impl AmdSevSnpDiceAttestationVerifier {
     }
 }
 
+/// Verifies an attestation rooted in AMD SEV-SNP. Verification fails if any
+/// of the event verifiers fails.
 impl AttestationVerifier for AmdSevSnpDiceAttestationVerifier {
-    // Verifies the AMD SEV-SNP attestation report and the EventLog in the
-    // evidence and returns [`AttestationResults`] with the Success status if
-    // verification is successful. Verification fails if one of the event
-    // verifiers fails. In this case [`Result::Err`] is returned.
     fn verify(
         &self,
         evidence: &Evidence,
@@ -81,53 +76,36 @@ impl AttestationVerifier for AmdSevSnpDiceAttestationVerifier {
     ) -> anyhow::Result<AttestationResults> {
         let verification_time = self.clock.get_time();
 
-        // Get DICE root layer evidence.
-        let root_layer = &evidence
-            .root_layer
-            .as_ref()
-            .context("root DICE layer wasn't provided in the evidence")?;
-
-        // Parse AMD SEV-SNP attestation report.
-        let attestation_report = AttestationReport::ref_from_bytes(
-            &root_layer.remote_attestation_report,
-        )
-        .map_err(|err| anyhow::anyhow!("invalid AMD SEV-SNP attestation report: {}", err))?;
-
         // Verify AMD SEV-SNP platform authenticity and configuration.
-        let platform_endorsement = endorsements
-            .platform
-            .as_ref()
-            .context("AMD SEV-SNP endorsement wasn't provided in endorsements")?;
-        self.platform_policy
-            .verify(verification_time, attestation_report, platform_endorsement)
-            .context("couldn't verify AMD SEV-SNP platform")?;
-
-        // Verify that the DICE root ECA key is bound to the attestation report.
-        verify_dice_root_eca_key(attestation_report, &root_layer.eca_public_key)
-            .context("couldn't verify DICE root ECA key")?;
+        let root_layer = evidence.root_layer.as_ref().context("no root layer in evidence")?;
+        let platform_endorsement =
+            endorsements.platform.as_ref().context("no platform endorsement")?;
+        let platform_results = self
+            .platform_policy
+            .verify(verification_time, root_layer, platform_endorsement)
+            .context("verifying platform policy")?;
 
         // Verify DICE chain integrity.
         // The output argument is ommited because last layer's certificate authority key
         // is not used to sign anything.
-        let _ = verify_dice_chain(evidence).context("couldn't verify DICE chain")?;
+        let _ = verify_dice_chain(evidence).context("verifying DICE chain")?;
 
         // Verify firmware measurement.
-        let firmware_endorsement = &endorsements
-            .initial
-            .as_ref()
-            .context("firmware endorsement wasn't provided in endorsements")?;
-        let firmware_attestation_result = self
+        let firmware_endorsement =
+            &endorsements.initial.as_ref().context("no firmware endorsement")?;
+        let measurement = get_initial_measurement(&platform_results)
+            .ok_or(anyhow::anyhow!("no initial measurement"))?;
+        let firmware_results = self
             .firmware_policy
-            .verify(verification_time, &attestation_report.data.measurement, firmware_endorsement)
-            .context("couldn't verify firmware")?;
+            .verify(verification_time, measurement, firmware_endorsement)
+            .context("verifying firmware policy")?;
 
         // Verify event log and event endorsements with corresponding policies.
-        let event_log = &evidence
-            .event_log
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("event log was not provided"))?;
+        let event_log =
+            evidence.event_log.as_ref().ok_or_else(|| anyhow::anyhow!("no event log"))?;
         let mut event_attestation_results = Vec::new();
-        event_attestation_results.push(firmware_attestation_result);
+        event_attestation_results.push(platform_results);
+        event_attestation_results.push(firmware_results);
         if !endorsements.events.is_empty() {
             let results = verify_event_log(
                 verification_time,
@@ -135,30 +113,89 @@ impl AttestationVerifier for AmdSevSnpDiceAttestationVerifier {
                 &endorsements.events,
                 self.event_policies.as_slice(),
             )
-            .context("couldn't verify event log")?;
+            .context("verifying event log")?;
 
             verify_event_artifacts_uniqueness(&results)
-                .context("couldn't verify event artifacts uniqueness")?;
+                .context("verifying event artifact uniqueness")?;
             event_attestation_results.extend(results);
         }
 
         // TODO: b/366419879 - Combine per-event attestation results.
-        #[allow(deprecated)]
         Ok(AttestationResults {
             status: Status::Success.into(),
-            reason: "".to_string(),
-            encryption_public_key: vec![],
-            signing_public_key: vec![],
             extracted_evidence: None,
             event_attestation_results,
+            ..Default::default()
+        })
+    }
+}
+
+/// Attestation verifier for cases when there is no hardware root of trust.
+/// The attestation report contains just the root key, no stage0 measurement.
+/// The endorsements of the events can still be verified against reference
+/// values.
+pub struct InsecureAttestationVerifier {
+    clock: Arc<dyn Clock>,
+    insecure_policy: InsecurePolicy,
+    event_policies: Vec<Box<dyn EventPolicy>>,
+}
+
+impl InsecureAttestationVerifier {
+    pub fn new(clock: Arc<dyn Clock>, event_policies: Vec<Box<dyn EventPolicy>>) -> Self {
+        Self { clock, insecure_policy: InsecurePolicy::new(), event_policies }
+    }
+}
+
+/// Verifies the validity of an empty and hence meaningless attestation
+/// report, then verifies the DICE chain. Finally verifies the event log.
+impl AttestationVerifier for InsecureAttestationVerifier {
+    fn verify(
+        &self,
+        evidence: &Evidence,
+        endorsements: &Endorsements,
+    ) -> anyhow::Result<AttestationResults> {
+        let verification_time = self.clock.get_time();
+
+        let root_layer = evidence.root_layer.as_ref().context("no root layer in evidence")?;
+        let insecure_endorsement =
+            endorsements.platform.as_ref().context("no platform endorsement")?;
+        let insecure_results =
+            self.insecure_policy.verify(verification_time, root_layer, insecure_endorsement)?;
+
+        // Verify DICE chain integrity. The output argument is omitted because
+        // the last layer's certificate authority key is not used to sign
+        // anything.
+        let _ = verify_dice_chain(evidence).context("verifying DICE chain")?;
+
+        // Verify event log and event endorsements with corresponding policies.
+        let event_log =
+            evidence.event_log.as_ref().ok_or_else(|| anyhow::anyhow!("no event log"))?;
+        let mut event_attestation_results = Vec::new();
+        event_attestation_results.push(insecure_results);
+        if !endorsements.events.is_empty() {
+            let results = verify_event_log(
+                verification_time,
+                event_log,
+                &endorsements.events,
+                self.event_policies.as_slice(),
+            )
+            .context("verifying event log")?;
+            verify_event_artifacts_uniqueness(&results)
+                .context("verifying event artifact uniqueness")?;
+            event_attestation_results.extend(results);
+        }
+
+        Ok(AttestationResults {
+            status: Status::Success.into(),
+            extracted_evidence: None,
+            event_attestation_results,
+            ..Default::default()
         })
     }
 }
 
 // Attestation verifier that only verifies the EventLog, i.e. it doesn't verify
 // the root attestation and doesn't check the DICE certificate chain.
-// NB: this verifier returns attestation failures as Rust errors instead of the
-// AttestationResults.
 pub struct EventLogVerifier {
     event_policies: Vec<Box<dyn EventPolicy>>,
     clock: Arc<dyn Clock>,
@@ -170,10 +207,9 @@ impl EventLogVerifier {
     }
 }
 
+// Verifies the EventLog in the evidence. Verification fails if any of
+// the event verifiers fails.
 impl AttestationVerifier for EventLogVerifier {
-    // Verifies the EventLog in the evidence and returns AttestationResults with the
-    // Success status if verification is successful. Verification fails if one of
-    // the event verifiers fails. In this case Result::Err is returned.
     fn verify(
         &self,
         evidence: &Evidence,
@@ -193,20 +229,17 @@ impl AttestationVerifier for EventLogVerifier {
             event_endorsements,
             self.event_policies.as_slice(),
         )
-        .context("couldn't verify event log")?;
+        .context("verifying event log")?;
 
         verify_event_artifacts_uniqueness(&event_attestation_results)
-            .context("couldn't verify event artifacts ID uniqueness")?;
+            .context("verify event artifact uniqueness")?;
 
         // TODO: b/366419879 - Combine per-event attestation results.
-        #[allow(deprecated)]
         Ok(AttestationResults {
             status: Status::Success.into(),
-            reason: "".to_string(),
-            encryption_public_key: vec![],
-            signing_public_key: vec![],
             extracted_evidence: None,
             event_attestation_results,
+            ..Default::default()
         })
     }
 }
@@ -219,17 +252,16 @@ pub fn create_amd_verifier<T: Clock + 'static>(
     match reference_values.r#type.as_ref() {
         Some(reference_values::Type::OakContainers(rvs)) => {
             let root_rvs = rvs.root_layer.as_ref().context("no root layer reference values")?;
-            let platform_policy = AmdSevSnpPolicy::from_root_layer_reference_values(root_rvs)
-                .context("failed to create platform policy")?;
-            let firmware_policy = FirmwarePolicy::from_root_layer_reference_values(root_rvs)
-                .context("failed to create firmware policy")?;
+            let amd = root_rvs.amd_sev.as_ref().context("no AMD SEV-SNP reference values")?;
+            let platform_policy = AmdSevSnpPolicy::new(amd);
+            let firmware_policy =
+                FirmwarePolicy::new(amd.stage0.as_ref().context("no stage0 reference value")?);
             let kernel_policy = KernelPolicy::new(
                 rvs.kernel_layer.as_ref().context("no kernel layer reference values")?,
             );
             let system_policy = SystemPolicy::new(
                 rvs.system_layer.as_ref().context("no system layer reference values")?,
             );
-            // TODO: b/382550581 - Container reference values currently skip verification.
             let container_policy = ContainerPolicy::new(
                 rvs.container_layer.as_ref().context("no container layer reference values")?,
             );
@@ -244,14 +276,11 @@ pub fn create_amd_verifier<T: Clock + 'static>(
             ))
         }
         Some(reference_values::Type::OakRestrictedKernel(rvs)) => {
-            // Create platform and firmware policies.
-            // TODO: b/398859203 - Remove root layer reference values once old reference
-            // values have been updated.
             let root_rvs = rvs.root_layer.as_ref().context("no root layer reference values")?;
-            let platform_policy = AmdSevSnpPolicy::from_root_layer_reference_values(root_rvs)
-                .context("failed to create platform policy")?;
-            let firmware_policy = FirmwarePolicy::from_root_layer_reference_values(root_rvs)
-                .context("failed to create firmware policy")?;
+            let amd = root_rvs.amd_sev.as_ref().context("no AMD SEV-SNP reference values")?;
+            let platform_policy = AmdSevSnpPolicy::new(amd);
+            let firmware_policy =
+                FirmwarePolicy::new(amd.stage0.as_ref().context("no firmware reference value")?);
             let kernel_policy = KernelPolicy::new(
                 rvs.kernel_layer.as_ref().context("no kernel layer reference values")?,
             );
@@ -268,6 +297,48 @@ pub fn create_amd_verifier<T: Clock + 'static>(
                 event_policies,
                 Arc::new(clock),
             ))
+        }
+        _ => anyhow::bail!("malformed reference values"),
+    }
+}
+
+// Creates a verifier for an attestation from hardware which is neither AMD
+// SEV-SNP nor Intel TDX.
+pub fn create_insecure_verifier<T: Clock + 'static>(
+    clock: T,
+    reference_values: &ReferenceValues,
+) -> anyhow::Result<InsecureAttestationVerifier> {
+    match reference_values.r#type.as_ref() {
+        Some(reference_values::Type::OakContainers(rvs)) => {
+            let root_rvs = rvs.root_layer.as_ref().context("no root layer reference values")?;
+            anyhow::ensure!(root_rvs.insecure.is_some(), "insecure not allowed");
+            let kernel_policy = KernelPolicy::new(
+                rvs.kernel_layer.as_ref().context("no kernel layer reference values")?,
+            );
+            let system_policy = SystemPolicy::new(
+                rvs.system_layer.as_ref().context("no system layer reference values")?,
+            );
+            let container_policy = ContainerPolicy::new(
+                rvs.container_layer.as_ref().context("no container layer reference values")?,
+            );
+            let event_policies: Vec<Box<dyn Policy<[u8]>>> =
+                vec![Box::new(kernel_policy), Box::new(system_policy), Box::new(container_policy)];
+
+            Ok(InsecureAttestationVerifier::new(Arc::new(clock), event_policies))
+        }
+        Some(reference_values::Type::OakRestrictedKernel(rvs)) => {
+            let root_rvs = rvs.root_layer.as_ref().context("no root layer reference values")?;
+            anyhow::ensure!(root_rvs.insecure.is_some(), "insecure not allowed");
+            let kernel_policy = KernelPolicy::new(
+                rvs.kernel_layer.as_ref().context("no kernel layer reference values")?,
+            );
+            let application_policy = ApplicationPolicy::new(
+                rvs.application_layer.as_ref().context("no application layer reference values")?,
+            );
+            let event_policies: Vec<Box<dyn Policy<[u8]>>> =
+                vec![Box::new(kernel_policy), Box::new(application_policy)];
+
+            Ok(InsecureAttestationVerifier::new(Arc::new(clock), event_policies))
         }
         _ => anyhow::bail!("malformed reference values"),
     }
@@ -334,23 +405,6 @@ fn verify_event_artifacts_uniqueness(
         })?;
         Ok::<HashSet<&String>, anyhow::Error>(updated_id_set)
     })?;
-    Ok(())
-}
-
-/// Verifies that the root ECA public key of the DICE chain is bound to the
-/// attestation report to ensure that the entire DICE chain is valid.
-fn verify_dice_root_eca_key(
-    attestation_report: &AttestationReport,
-    eca_public_key: &[u8],
-) -> anyhow::Result<()> {
-    let expected = &hash_sha2_256(eca_public_key)[..];
-    let actual = attestation_report.data.report_data;
-    anyhow::ensure!(
-        // The report data contains 64 bytes by default, but we only use the first 32 bytes
-        // at the moment.
-        expected.len() < actual.len() && expected == &actual[..expected.len()],
-        "the root ECA public key is not bound to the AMD SEV-SNP attestation report"
-    );
     Ok(())
 }
 

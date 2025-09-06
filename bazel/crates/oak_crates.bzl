@@ -371,6 +371,13 @@ OAK_STD_CRATES = _common_crates(std = True) | {
         default_features = False,
         version = "0.1.77",
     ),
+    "axum": crate.spec(
+        features = [
+            "http2",
+            "tokio",
+        ],
+        version = "0.7.9",
+    ),
     "bmrng": crate.spec(version = "0.5.2"),
     "clap": crate.spec(
         features = [
@@ -409,7 +416,12 @@ OAK_STD_CRATES = _common_crates(std = True) | {
     "jni": crate.spec(
         version = "0.21.1",
     ),
-    "jwt": crate.spec(version = "0.16.0"),
+    "jwt": crate.spec(
+        features = [
+            "openssl",
+        ],
+        version = "0.16.0",
+    ),
     "nix": crate.spec(
         features = [
             "fs",
@@ -432,6 +444,9 @@ OAK_STD_CRATES = _common_crates(std = True) | {
     ),
     "oci-spec": crate.spec(version = "0.8.1"),
     "once_cell": crate.spec(version = "1.19.0"),
+    "openssl": crate.spec(
+        version = "0.10.73",
+    ),
     # TODO b/350061567 - Remove opentelemetry version pins
     "opentelemetry": crate.spec(
         features = [
@@ -509,8 +524,19 @@ OAK_STD_CRATES = _common_crates(std = True) | {
     "rpassword": crate.spec(version = "7.3.1"),
     "ring": crate.spec(version = "0.17.14"),
     "rmcp": crate.spec(
-        features = ["server", "transport-io"],
-        version = "0.1",
+        default_features = False,
+        features = [
+            "base64",
+            "macros",
+            "server",
+            "transport-streamable-http-server",
+            "transport-worker",
+        ],
+        version = "0.6.0",
+    ),
+    "rmcp-macros": crate.spec(
+        default_features = False,
+        version = "0.6.0",
     ),
     "rtnetlink": crate.spec(version = "0.14.1"),
     "serde_yaml": crate.spec(version = "0.9.30"),

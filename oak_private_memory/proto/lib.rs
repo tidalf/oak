@@ -303,7 +303,8 @@ vec_enum_converter!(
     unspecified_variant = crate::oak::private_memory::MemoryField::Unknown,
     doc_string = "a sequence of strings or integers representing MemoryField variants",
     element_doc_string = "a string or an integer representing a MemoryField variant",
-    valid_variants = &["UNKNOWN", "ID", "TAGS", "EMBEDDINGS", "CONTENT"]
+    valid_variants =
+        &["UNKNOWN", "ID", "TAGS", "EMBEDDINGS", "CONTENT", "CREATED_TIMESTAMP", "EVENT_TIMESTAMP"]
 );
 
 enum_converter!(
@@ -313,3 +314,77 @@ enum_converter!(
     doc_string = "a string or an integer representing an EmbeddingQueryMetricType variant",
     valid_variants = &["DOT_PRODUCT"]
 );
+
+enum_converter!(
+    module_name = text_query_match_type_converter,
+    enum_type = crate::oak::private_memory::MatchType,
+    unspecified_variant = crate::oak::private_memory::MatchType::Unspecified,
+    doc_string = "a string or an integer representing a TextQuery::MatchType variant",
+    valid_variants = &["UNSPECIFIED", "EQUAL", "GTE", "LTE", "LT", "GT"]
+);
+
+enum_converter!(
+    module_name = operator_converter,
+    enum_type = crate::oak::private_memory::QueryOperator,
+    unspecified_variant = crate::oak::private_memory::QueryOperator::default(),
+    doc_string = "a string or an integer representing an Operator variant",
+    valid_variants = &["OPERATOR_UNSPECIFIED", "OPERATOR_AND", "OPERATOR_OR"]
+);
+
+pub mod timestamp_converter {
+    use chrono::{DateTime, Utc};
+    use prost_types::Timestamp;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    extern crate alloc;
+    use alloc::string::String;
+
+    pub fn serialize<S: Serializer>(
+        timestamp: &Option<Timestamp>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        if let Some(ref ts) = timestamp {
+            let datetime = DateTime::<Utc>::from_timestamp(ts.seconds, ts.nanos as u32)
+                .ok_or_else(|| serde::ser::Error::custom("invalid timestamp"))?;
+            return String::serialize(&datetime.to_rfc3339(), s);
+        }
+        s.serialize_none()
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Timestamp>, D::Error> {
+        let rfc3339_string: Option<String> = Option::deserialize(d)?;
+        if let Some(s) = rfc3339_string {
+            let datetime = DateTime::parse_from_rfc3339(&s)
+                .map_err(serde::de::Error::custom)?
+                .with_timezone(&Utc);
+            return Ok(Some(Timestamp {
+                seconds: datetime.timestamp(),
+                nanos: datetime.timestamp_subsec_nanos() as i32,
+            }));
+        }
+        Ok(None)
+    }
+}
+
+pub mod non_optional_timestamp_converter {
+    use chrono::{DateTime, Utc};
+    use prost_types::Timestamp;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    extern crate alloc;
+    use alloc::string::String;
+    pub fn serialize<S: Serializer>(timestamp: &Timestamp, s: S) -> Result<S::Ok, S::Error> {
+        let datetime = DateTime::<Utc>::from_timestamp(timestamp.seconds, timestamp.nanos as u32)
+            .ok_or_else(|| serde::ser::Error::custom("invalid timestamp"))?;
+        String::serialize(&datetime.to_rfc3339(), s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Timestamp, D::Error> {
+        let rfc3339_string: String = String::deserialize(d)?;
+        let datetime = DateTime::parse_from_rfc3339(&rfc3339_string)
+            .map_err(serde::de::Error::custom)?
+            .with_timezone(&Utc);
+        Ok(Timestamp {
+            seconds: datetime.timestamp(),
+            nanos: datetime.timestamp_subsec_nanos() as i32,
+        })
+    }
+}
