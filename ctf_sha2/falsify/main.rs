@@ -24,6 +24,9 @@ use prost::Message;
 use sha2::{Digest, Sha256};
 use x509_cert::{der::DecodePem, Certificate};
 
+// See ctf_sha2/src/main.rs.
+const OAK_CTF_SHA2_AUDIENCE: &str = "z08381475938604996746";
+
 fn main() -> anyhow::Result<()> {
     let root_certificate =
         Certificate::from_pem(CONFIDENTIAL_SPACE_ROOT_CERT_PEM).map_err(anyhow::Error::msg)?;
@@ -35,15 +38,19 @@ fn main() -> anyhow::Result<()> {
                 // Here we trust the JWT issuance timestamp. This is a bit circular, but there
                 // is no obvious better alternative which results in deterministic behaviour.
                 let now = parsed_token.claims().issued_at;
-                if let Ok(verified_token) =
-                    report_attestation_token(parsed_token, &root_certificate, &now)
-                        .into_checked_token()
+                if let Ok(verified_token) = report_attestation_token(
+                    parsed_token,
+                    &root_certificate,
+                    &now,
+                    OAK_CTF_SHA2_AUDIENCE.to_string(),
+                )
+                .into_checked_token()
                 {
                     if let Ok(image_reference) = verified_token.claims().effective_reference() {
-                        // Built at commit 74e81ae73c4a43d6cab10b3fb7c6ea43f0f2a3a5:
-                        // $ git checkout 74e81ae73c4a43d6cab10b3fb7c6ea43f0f2a3a5 && \
+                        // Built at commit c9c0b847ea9e349ab8c8b797bab5e03d1762cb89:
+                        // $ git checkout c9c0b847ea9e349ab8c8b797bab5e03d1762cb89 && \
                         //       bazel run ctf_sha2:image_push
-                        if image_reference.digest() == Some("sha256:2e51b5f8db1e222a1c79d406718723a0d6121246511889dd5cd4c39f62d948c8") {
+                        if image_reference.digest() == Some("sha256:692ab39ff6bd177481546e39179d40b961c2b5de7959f0ee388806050ac0244c") {
                             assert_ne!(compute_expected_flag_digest_string(&input.flag), verified_token.claims().eat_nonce);
                         }
                     }

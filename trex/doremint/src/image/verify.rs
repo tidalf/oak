@@ -14,20 +14,19 @@
 
 use anyhow::Context;
 use clap::Parser;
-use endorsement::intoto::{EndorsementStatement, Subject};
+use digest_util::hex_digest_from_typed_hash;
+use intoto::statement::parse_statement;
+use oak_time_std::instant::now;
 use oci_client::{client::ClientConfig, secrets::RegistryAuth, Client};
 use oci_spec::distribution::Reference;
 use p256::{ecdsa::VerifyingKey, pkcs8::DecodePublicKey};
-use sigstore::rekor::{
-    from_cosign_bundle,
-    hashedrekord::{HashedRekord, Unverified},
-    RekorPayload,
+use rekor::{
+    get_rekor_v1_public_key_raw,
+    log_entry::{verify_rekor_log_entry_ecdsa, LogEntry},
 };
 use sigstore_client::cosign;
 
-use crate::flags;
-
-const REKOR_PUBLIC_KEY_PEM: &str = include_str!("../../data/rekor_public_key.pem");
+use crate::flags::{verifying_key_parser, Claims};
 
 #[derive(Parser, Debug)]
 #[command(about = "Verify an endorsement for a container image")]
@@ -36,49 +35,53 @@ pub struct VerifyCommand {
     pub image: Reference,
 
     #[arg(from_global)]
-    pub claims: flags::Claims,
+    pub claims: Claims,
 
     #[arg(long, help = "Identity token for Cloud authentication")]
     pub access_token: Option<String>,
 
-    #[arg(long, value_parser = flags::verifying_key_parser, help = "Path to a file containing the PEM-encoded public key of the endorser")]
-    pub endorser_public_key: VerifyingKey,
+    #[arg(long, value_parser = verifying_key_parser, help = "Path to a file containing the PEM-encoded public key of the endorser")]
+    pub endorser_public_key: Vec<u8>,
 }
 
 impl VerifyCommand {
     pub async fn run(&self) -> anyhow::Result<()> {
-        let rekor_public_key = VerifyingKey::from_public_key_pem(REKOR_PUBLIC_KEY_PEM)
-            .map_err(|e| anyhow::anyhow!("failed to parse rekor public key: {}", e))?;
-
         let auth = match &self.access_token {
             Some(token) => RegistryAuth::Bearer(token.clone()),
             None => RegistryAuth::Anonymous,
         };
         let client = Client::new(ClientConfig::default());
 
+        // TODO: b/445140472 - Turn this all into a call to //tr/verify_endorsement.
         let (endorsement, bundle) = cosign::pull_payload(&client, &auth, &self.image).await?;
 
+        let endorser_verifying_key =
+            VerifyingKey::from_public_key_der(&self.endorser_public_key)
+                .map_err(|e| anyhow::anyhow!("failed to parse public key: {}", e))?;
         let endorsement = endorsement
-            .verify(&self.endorser_public_key)
-            .context("Failed to verify endorsement signature")?;
+            .verify(&endorser_verifying_key)
+            .context("verifying endorsement signature")?;
 
-        let rekor = from_cosign_bundle(bundle)?;
-        let rekor = rekor.verify(&rekor_public_key).context("failed to verify rekor signature")?;
-        let rekor: RekorPayload = serde_json::from_slice(rekor.message())?;
-        let hashed_rekord: HashedRekord<Unverified> = rekor.payload_body()?;
-        hashed_rekord
-            .verify(&self.endorser_public_key, endorsement.message())
-            .context("Failed to verify Rekor log entry")?;
+        // Verify the Rekor log entry.
+        let log_entry = LogEntry::from_cosign_bundle(bundle)?;
+        let serialized_log_entry = serde_json::to_vec(&log_entry)?;
+        let parsed_log_entry = verify_rekor_log_entry_ecdsa(
+            &serialized_log_entry,
+            &get_rekor_v1_public_key_raw(),
+            endorsement.message(),
+        )
+        .context("verifying Rekor log entry")?;
+        parsed_log_entry.compare_public_key(&self.endorser_public_key)?;
 
-        let statement: EndorsementStatement = serde_json::from_slice(endorsement.message())?;
-
-        let now = chrono::Utc::now();
-        let subject: Subject = (&self.image).try_into()?;
-
+        // Verify the endorsement statement.
+        let statement = parse_statement(endorsement.message())?;
+        let typed_hash = self.image.digest().context("missing digest in OCI reference")?;
+        let digest = hex_digest_from_typed_hash(typed_hash)?;
+        // Convert Vec<String> to Vec<&str>.
         let claims: Vec<&str> = self.claims.claims.iter().map(|s| s.as_str()).collect();
         statement
-            .validate(now.into(), &subject, &claims)
-            .context("failed to validate endorsement")?;
+            .validate(Some(digest), now(), &claims)
+            .context("validating endorsement statement")?;
 
         println!("Endorsement verified successfully for image {}", self.image);
 

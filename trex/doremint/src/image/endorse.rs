@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use anyhow::Context;
-use chrono::{DateTime, Duration, FixedOffset};
 use clap::Parser;
-use endorsement::intoto::{EndorsementOptions, EndorsementStatement, Validity};
+use digest_util::hex_digest_from_typed_hash;
+use intoto::statement::make_statement;
+use oak_time::{Duration, Instant};
 use oci_spec::distribution::Reference;
 
 use crate::flags::{self, parse_current_time, parse_duration};
@@ -38,7 +39,7 @@ pub struct EndorseCommand {
         value_parser = parse_current_time,
         default_value = ""
     )]
-    pub issued_on: DateTime<FixedOffset>,
+    pub issued_on: Instant,
 
     #[arg(from_global)]
     output: flags::Output,
@@ -48,20 +49,21 @@ impl EndorseCommand {
     pub async fn run(&self) -> anyhow::Result<()> {
         let writer = self.output.open()?;
 
-        let statement = EndorsementStatement::from_container_image(
-            &self.image,
-            EndorsementOptions {
-                issued_on: self.issued_on,
-                validity: Validity {
-                    not_before: self.issued_on,
-                    not_after: self.issued_on + self.valid_for,
-                },
-                claims: self.claims.claims.clone(),
-            },
-        )?;
+        let name = self.image.repository().to_string();
+        let typed_hash = self.image.digest().context("missing digest in OCI reference")?;
+        let digest = hex_digest_from_typed_hash(typed_hash)?;
+        let claim_types = self.claims.claims.iter().map(|x| &**x).collect();
+        let statement = make_statement(
+            &name,
+            &digest,
+            self.issued_on,
+            self.issued_on,
+            self.issued_on + self.valid_for,
+            claim_types,
+        );
 
         serde_json::to_writer_pretty(writer, &statement)
-            .context("could not serialize statement to JSON")?;
+            .context("serializing endorsement statement")?;
 
         Ok(())
     }

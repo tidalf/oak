@@ -25,10 +25,8 @@ import "google/protobuf/timestamp.proto";
 import "proto/session/session.proto";
 
 message Embedding {
-  // Identifier for the model that generated this embedding.
-  // During searching, only the embeddings with the same identifier will
-  // be used to calculate scores.
-  string identifier = 1;
+  // Search will only match embeddings that use the same model_signature.
+  string model_signature = 1;
   // The actual embedding values.
   repeated float values = 2;
 }
@@ -47,11 +45,28 @@ message MemoryContent {
   map<string, MemoryValue> contents = 1;
 }
 
+message LLMView {
+  // Reserved a bunch of fields for later uses.
+  reserved 1 to 10;
+
+  Embedding embedding = 11;
+  // The textual representation of the part of the memory that we embed.
+  string text_view = 12;
+
+  // The unique identifier of the view.
+  string id = 20;
+}
+
+message LLMViews {
+  repeated LLMView llm_views = 1;
+}
+
 message Memory {
   string id = 1;
   reserved 2;
   repeated string tags = 3;
-  repeated Embedding embeddings = 4;
+  // Deprecated. Use `views` instead.
+  repeated Embedding embeddings = 4 [deprecated = true];
   MemoryContent content = 5;
   // The time when the memory is uploaded. Set by backend.
   google.protobuf.Timestamp created_timestamp = 6;
@@ -59,6 +74,8 @@ message Memory {
   // set by the client. If not set, the `created_timestamp` will be
   // used.
   google.protobuf.Timestamp event_timestamp = 7;
+
+  LLMViews views = 8;
 }
 
 enum MemoryField {

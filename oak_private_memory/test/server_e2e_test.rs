@@ -13,53 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{
-    collections::HashMap,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-};
+use std::{collections::HashMap, time::Duration};
 
-use anyhow::Result;
 use client::{PrivateMemoryClient, SerializationFormat};
-use private_memory_server_lib::app::{self, run_persistence_service, ApplicationConfig};
+use private_memory_test_utils::start_server;
 use sealed_memory_rust_proto::{
-    oak::private_memory::{text_query, MatchType, TextQuery},
+    oak::private_memory::{
+        memory_value, text_query, Embedding, LlmView, LlmViews, MatchType, TextQuery,
+    },
     prelude::v1::*,
 };
-use tokio::{net::TcpListener, sync::mpsc as tokio_mpsc};
-
-fn init_logging() {
-    let _ = env_logger::builder().is_test(true).try_init();
-}
+use tokio::time::sleep;
 
 static TEST_EK: &[u8; 32] = b"aaaabbbbccccddddeeeeffffgggghhhh";
-
-async fn start_server() -> Result<(
-    SocketAddr,
-    tokio::task::JoinHandle<Result<()>>,
-    tokio::task::JoinHandle<Result<()>>,
-    tokio::task::JoinHandle<()>,
-)> {
-    init_logging();
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-    let listener = TcpListener::bind(addr).await?;
-    let addr = listener.local_addr()?;
-
-    let db_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-    let db_listener = TcpListener::bind(db_addr).await?;
-    let db_addr = db_listener.local_addr()?;
-
-    let application_config = ApplicationConfig { database_service_host: db_addr };
-
-    let metrics = private_memory_server_lib::metrics::get_global_metrics();
-    let (persistence_tx, persistence_rx) = tokio_mpsc::unbounded_channel();
-    let persistence_join_handle = tokio::spawn(run_persistence_service(persistence_rx));
-    Ok((
-        addr,
-        tokio::spawn(app::service::create(listener, application_config, metrics, persistence_tx)),
-        tokio::spawn(private_memory_test_database_server_lib::service::create(db_listener)),
-        persistence_join_handle,
-    ))
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_add_get_reset_memory_all_modes() {
@@ -138,6 +104,9 @@ async fn test_add_get_reset_memory_all_modes() {
         // GetMemoriesRequest again
         let get_memories_response_2 = client.get_memories("tag", 10, None, "").await.unwrap();
         assert_eq!(get_memories_response_2.memories.len(), 0);
+
+        // Wait for the database to be deleted.
+        sleep(Duration::from_secs(1)).await;
     }
 }
 
@@ -213,5 +182,98 @@ async fn test_standalone_text_query() {
         let response = client.search_memory(query, 10, None, "").await.unwrap();
         assert_eq!(response.results.len(), 1);
         assert_eq!(response.results[0].memory.as_ref().unwrap().id, "memory1");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_memory_search_only_return_views_with_highest_scores() {
+    let (addr, _server_join_handle, _db_join_handle, _persistence_join_handle) =
+        start_server().await.unwrap();
+    let url = format!("http://{}", addr);
+    let pm_uid = "test_embedding_search_with_pagination_user";
+
+    for &format in [SerializationFormat::BinaryProto, SerializationFormat::Json].iter() {
+        let mut client =
+            PrivateMemoryClient::create_with_start_session(&url, pm_uid, TEST_EK, format)
+                .await
+                .unwrap();
+
+        // Add memory 1 with two views.
+        let memory1 = Memory {
+            id: "memory1".to_string(),
+            views: Some(LlmViews {
+                llm_views: vec![
+                    LlmView {
+                        id: "view1a".to_string(),
+                        embedding: Some(Embedding {
+                            model_signature: "test_model".to_string(),
+                            values: vec![1.0, 0.0, 0.0],
+                        }),
+                        ..Default::default()
+                    },
+                    LlmView {
+                        id: "view1b".to_string(),
+                        embedding: Some(Embedding {
+                            model_signature: "test_model".to_string(),
+                            values: vec![0.0, 1.0, 0.0],
+                        }),
+                        ..Default::default()
+                    },
+                ],
+            }),
+            ..Default::default()
+        };
+        client.add_memory(memory1).await.unwrap();
+
+        // Add memory 2 with two views.
+        let memory2 = Memory {
+            id: "memory2".to_string(),
+            views: Some(LlmViews {
+                llm_views: vec![
+                    LlmView {
+                        id: "view2a".to_string(),
+                        embedding: Some(Embedding {
+                            model_signature: "test_model".to_string(),
+                            values: vec![0.0, 0.0, 1.0],
+                        }),
+                        ..Default::default()
+                    },
+                    LlmView {
+                        id: "view2b".to_string(),
+                        embedding: Some(Embedding {
+                            model_signature: "test_model".to_string(),
+                            values: vec![1.0, 1.0, 0.0], // This view will have the highest score.
+                        }),
+                        ..Default::default()
+                    },
+                ],
+            }),
+            ..Default::default()
+        };
+        client.add_memory(memory2).await.unwrap();
+
+        // Query for memories with an embedding that is closer to memory2's view2b.
+        let embedding_query = SearchMemoryQuery {
+            clause: Some(
+                sealed_memory_rust_proto::oak::private_memory::search_memory_query::Clause::EmbeddingQuery(
+                    EmbeddingQuery {
+                        embedding: vec![Embedding {
+                            model_signature: "test_model".to_string(),
+                            values: vec![1.0, 1.0, 0.0],
+                        }],
+                        ..Default::default()
+                    },
+                ),
+            ),
+        };
+
+        let response = client.search_memory(embedding_query, 1, None, "").await.unwrap();
+        assert_eq!(response.results.len(), 1);
+        let top_result = response.results.first().unwrap();
+        assert_eq!(top_result.memory.as_ref().unwrap().id, "memory2");
+        assert_eq!(top_result.score, 2.0);
+        let views = top_result.memory.as_ref().unwrap().views.as_ref().unwrap();
+        assert_eq!(views.llm_views.len(), 1);
+        assert_eq!(views.llm_views[0].id, "view2b");
     }
 }

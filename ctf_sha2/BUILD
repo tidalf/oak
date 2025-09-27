@@ -28,7 +28,9 @@ rust_binary(
     srcs = ["src/main.rs"],
     deps = [
         "//oak_attestation_gcp",
+        "@oak_crates_index//:base64",
         "@oak_crates_index//:rand",
+        "@oak_crates_index//:serde_json",
         "@oak_crates_index//:sha2",
     ],
 )
@@ -47,7 +49,6 @@ oci_image(
     exposed_ports = [],
     # https://cloud.google.com/confidential-computing/confidential-space/docs/create-customize-workloads#launch_policies
     labels = {
-        "tee.launch_policy.allow_env_override": "CONTAINER_IMAGE",
         "tee.launch_policy.log_redirect": "always",
     },
     tars = [":tar"],

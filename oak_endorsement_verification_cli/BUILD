@@ -30,6 +30,7 @@ rust_binary(
         "//oak_attestation_verification",
         "//oak_file_utils",
         "//oak_proto_rust",
+        "//tr/intoto",
         "@oak_crates_index//:anyhow",
         "@oak_crates_index//:clap",
         "@oak_crates_index//:derive_builder",

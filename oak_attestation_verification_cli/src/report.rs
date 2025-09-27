@@ -18,7 +18,6 @@ use std::fmt::Write;
 
 use anyhow::anyhow;
 use oak_attestation_gcp::{
-    cosign::{CosignVerificationReport, StatementReport},
     jwt::verification::{AttestationTokenVerificationReport, CertificateReport, IssuerReport},
     policy::ConfidentialSpaceVerificationReport,
     policy_generator::confidential_space_policy_from_reference_values,
@@ -93,7 +92,6 @@ impl VerificationReport {
             }
         }
 
-        let indent = indent + 1;
         match session_binding {
             None => print_indented!(writer, indent, "❌ No session binding found")?,
             Some(session_binding) => {
@@ -185,28 +183,7 @@ fn print_confidential_space_attestation_report(
         match &report.workload_endorsement_verification {
             None => print_indented!(writer, indent, "🤷 not present")?,
             Some(Err(err)) => print_indented!(writer, indent, "❌ failed to verify: {}", err)?,
-            Some(Ok(CosignVerificationReport { statement_verification })) => {
-                print_indented!(writer, indent, " Statement")?;
-                let indent = indent + 1;
-                match statement_verification {
-                    Err(err) => print_indented!(writer, indent, "❌ failed to verify: {}", err)?,
-                    Ok(StatementReport { statement_validation, rekor_verification }) => {
-                        match statement_validation {
-                            Err(err) => print_indented!(writer, indent, "❌ is invalid: {}", err)?,
-                            Ok(()) => print_indented!(writer, indent, "✅ is valid")?,
-                        }
-                        match rekor_verification {
-                            None => print_indented!(writer, indent, "🤷 not verified")?,
-                            Some(Err(err)) => {
-                                print_indented!(writer, indent, "❌ failed to verify: {}", err)?
-                            }
-                            Some(Ok(())) => {
-                                print_indented!(writer, indent, "✅ verified successfully")?
-                            }
-                        }
-                    }
-                }
-            }
+            Some(Ok(())) => print_indented!(writer, indent, "✅ verified successfully")?,
         }
     }
     Ok(())
@@ -220,14 +197,14 @@ fn print_token_report(
     print_indented!(writer, indent, "🪙 Token verification:")?;
     let indent = indent + 1;
     let AttestationTokenVerificationReport {
-        production_image,
+        has_required_claims,
         validity,
         verification,
         issuer_report,
     } = report;
-    match production_image {
-        Err(err) => print_indented!(writer, indent, "❌ obtained from a debug image: {}", err)?,
-        Ok(()) => print_indented!(writer, indent, "✅ obtained from a production image")?,
+    match has_required_claims {
+        Err(err) => print_indented!(writer, indent, "❌ failed to have required claims: {}", err)?,
+        Ok(()) => print_indented!(writer, indent, "✅ has required claims")?,
     }
     match validity {
         Err(err) => print_indented!(writer, indent, "❌ is invalid: {}", err)?,
@@ -300,7 +277,6 @@ mod tests {
         SignWithKey, SigningAlgorithm, Token, Verified, VerifyWithKey, VerifyingAlgorithm,
     };
     use oak_attestation_gcp::{
-        cosign::{CosignVerificationError, CosignVerificationReport, StatementReport},
         jwt::{
             verification::{
                 AttestationTokenVerificationReport, AttestationVerificationError,
@@ -432,7 +408,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
         let report = VerificationReport::ConfidentialSpace(ConfidentialSpaceVerificationReport {
             public_key_verification: Ok(()),
             token_report: AttestationTokenVerificationReport {
-                production_image: Ok(()),
+                has_required_claims: Ok(()),
                 validity: Ok(()),
                 verification: Ok(generate_verified_token().unwrap()),
                 issuer_report: Ok(CertificateReport {
@@ -441,12 +417,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                     issuer_report: Box::new(IssuerReport::Root),
                 }),
             },
-            workload_endorsement_verification: Some(Ok(CosignVerificationReport {
-                statement_verification: Ok(StatementReport {
-                    statement_validation: Ok(()),
-                    rekor_verification: Some(Ok(())),
-                }),
-            })),
+            workload_endorsement_verification: Some(Ok(())),
             session_binding_public_key: signing_key.verifying_key().to_sec1_bytes().to_vec(),
         });
 
@@ -465,7 +436,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                 "🔑 Public key:",
                 "✅ verified successfully",
                 "🪙 Token verification:",
-                "✅ obtained from a production image",
+                "✅ has required claims",
                 "✅ is valid",
                 "✅ verified successfully",
                 "📜 Certificate chain:",
@@ -475,8 +446,6 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                 "✍️ issued by:",
                 "🛡️ Confidential Space root certificate",
                 "📦 Workload endorsement:",
-                "Statement",
-                "✅ is valid",
                 "✅ verified successfully",
                 "🔐 Session binding:",
                 "✅ verified successfully",
@@ -489,7 +458,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
         let report = VerificationReport::ConfidentialSpace(ConfidentialSpaceVerificationReport {
             public_key_verification: Ok(()),
             token_report: AttestationTokenVerificationReport {
-                production_image: Ok(()),
+                has_required_claims: Ok(()),
                 validity: Ok(()),
                 verification: Ok(generate_verified_token().unwrap()),
                 issuer_report: Ok(CertificateReport {
@@ -510,7 +479,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                 "🔑 Public key:",
                 "✅ verified successfully",
                 "🪙 Token verification:",
-                "✅ obtained from a production image",
+                "✅ has required claims",
                 "✅ is valid",
                 "✅ verified successfully",
                 "📜 Certificate chain:",
@@ -535,14 +504,14 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                 "public key",
             )),
             token_report: AttestationTokenVerificationReport {
-                production_image: Err(AttestationVerificationError::UnknownError("debug image")),
+                has_required_claims: Err(AttestationVerificationError::UnknownError("debug image")),
                 validity: Err(AttestationVerificationError::UnknownError("token validity error")),
                 verification: Err(AttestationVerificationError::UnknownError("verification error")),
                 issuer_report: Err(AttestationVerificationError::UnknownError("issuer error")),
             },
             workload_endorsement_verification: Some(Err(
-                CosignVerificationError::StatementValidationError(
-                    "workload endorsement error".to_string(),
+                ConfidentialSpaceVerificationError::EndorsementVerificationError(
+                    "endorsement verification error".to_string(),
                 ),
             )),
             session_binding_public_key: signing_key.verifying_key().to_sec1_bytes().to_vec(),
@@ -563,13 +532,13 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                 "🔑 Public key:",
                 "❌ failed to verify: Missing field: public key",
                 "🪙 Token verification:",
-                "❌ obtained from a debug image: Unknown error: debug image",
+                "❌ failed to have required claims: Unknown error: debug image",
                 "❌ is invalid: Unknown error: token validity error",
                 "❌ failed to verify: Unknown error: verification error",
                 "📜 Certificate chain:",
                 "❌ invalid: Unknown error: issuer error",
                 "📦 Workload endorsement:",
-                "❌ failed to verify: endorsement validation error: workload endorsement error",
+                "❌ failed to verify: Failed to verify endorsement: endorsement verification error",
                 "🔐 Session binding:",
                 "❌ failed to verify: could not parse signature",
             ],
@@ -584,7 +553,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
         let report = VerificationReport::ConfidentialSpace(ConfidentialSpaceVerificationReport {
             public_key_verification: Ok(()),
             token_report: AttestationTokenVerificationReport {
-                production_image: Ok(()),
+                has_required_claims: Ok(()),
                 validity: Ok(()),
                 verification: Ok(generate_verified_token().unwrap()),
                 issuer_report: Ok(CertificateReport {
@@ -593,16 +562,11 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                     issuer_report: Box::new(IssuerReport::Root),
                 }),
             },
-            workload_endorsement_verification: Some(Ok(CosignVerificationReport {
-                statement_verification: Ok(StatementReport {
-                    statement_validation: Err(CosignVerificationError::StatementValidationError(
-                        "statement validation error".to_string(),
-                    )),
-                    rekor_verification: Some(Err(CosignVerificationError::UnknownError(
-                        "rekor verification error",
-                    ))),
-                }),
-            })),
+            workload_endorsement_verification: Some(Err(
+                ConfidentialSpaceVerificationError::EndorsementVerificationError(
+                    "endorsement verification error".to_string(),
+                ),
+            )),
             session_binding_public_key: signing_key.verifying_key().to_sec1_bytes().to_vec(),
         });
 
@@ -621,7 +585,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                 "🔑 Public key:",
                 "✅ verified successfully",
                 "🪙 Token verification:",
-                "✅ obtained from a production image",
+                "✅ has required claims",
                 "✅ is valid",
                 "✅ verified successfully",
                 "📜 Certificate chain:",
@@ -631,9 +595,7 @@ Nj98VHCkMOChdP0NoY0+ASi3S9WesDHql/SS3TeVKIW0W7VRIYDz51rU
                 "✍️ issued by:",
                 "🛡️ Confidential Space root certificate",
                 "📦 Workload endorsement:",
-                "Statement",
-                "❌ is invalid: endorsement validation error: statement validation error",
-                "❌ failed to verify: Unknown error: rekor verification error",
+                "❌ failed to verify: Failed to verify endorsement: endorsement verification error",
                 "🔐 Session binding:",
                 "✅ verified successfully",
             ],

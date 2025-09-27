@@ -20,6 +20,12 @@
 use alloc::{string::String, vec::Vec};
 
 use anyhow::{Context, Error};
+use digest_util::{
+    hex_to_raw_digest, is_hex_digest_match, raw_digest_from_contents, raw_to_hex_digest,
+};
+use intoto::statement::{
+    get_hex_digest_from_statement, parse_statement, DefaultStatement, Validity,
+};
 use oak_proto_rust::oak::{
     attestation::v1::{
         binary_reference_value, endorsement::Format, endorsements, expected_digests,
@@ -46,14 +52,9 @@ use oak_proto_rust::oak::{
     RawDigest,
 };
 use prost::Message;
+use verify_endorsement::{is_firmware_type, is_kernel_type, verify_endorsement};
 
-use crate::{
-    endorsement::{
-        is_firmware_type, is_kernel_type, verify_binary_endorsement, verify_endorsement,
-    },
-    statement::{get_digest, parse_statement, DefaultStatement, Validity},
-    util::{hex_to_raw_digest, is_hex_digest_match, raw_digest_from_contents, raw_to_hex_digest},
-};
+use crate::endorsement::verify_binary_endorsement;
 
 // Create the set of [ExpectedValues] for the provided [endorsements] and
 // [reference_values]. These can be cached by the client for as long as the
@@ -561,7 +562,7 @@ pub(crate) fn get_expected_measurement_digest(
             let endorsement_statement = parse_statement(&endorsement.endorsement)
                 .context("parsing endorsement statement")?;
             Ok(to_expected_digests(
-                &[hex_to_raw_digest(&get_digest(&endorsement_statement)?)?],
+                &[hex_to_raw_digest(&get_hex_digest_from_statement(&endorsement_statement)?)?],
                 endorsement_statement.predicate.validity.as_ref(),
             ))
         }
@@ -592,7 +593,7 @@ fn acquire_expected_digests(
             )
             .context("verifying generic endorsement")?;
             Ok(to_expected_digests(
-                &[hex_to_raw_digest(&get_digest(&statement)?)?],
+                &[hex_to_raw_digest(&get_hex_digest_from_statement(&statement)?)?],
                 statement.predicate.validity.as_ref(),
             ))
         }
@@ -624,7 +625,8 @@ fn get_verified_stage0_attachment(
     if !is_firmware_type(&statement) {
         anyhow::bail!("expected endorsement for firmware-type binary");
     }
-    let expected_digest = get_digest(&statement).context("getting expected digest")?;
+    let expected_digest =
+        get_hex_digest_from_statement(&statement).context("getting expected digest")?;
     let actual_digest = raw_to_hex_digest(&raw_digest_from_contents(&endorsement.subject));
     is_hex_digest_match(&actual_digest, &expected_digest).context("comparing digests")?;
     FirmwareAttachment::decode(&*endorsement.subject)
@@ -642,7 +644,8 @@ fn acquire_verified_stage0_attachment(
         anyhow::bail!("expected endorsement for firmware-type binary");
     }
 
-    let expected_digest = get_digest(&statement).context("getting expected digest")?;
+    let expected_digest =
+        get_hex_digest_from_statement(&statement).context("getting expected digest")?;
     let endorsement = signed_endorsement
         .endorsement
         .as_ref()
@@ -755,7 +758,8 @@ fn get_verified_kernel_attachment(
     if !is_kernel_type(&statement) {
         anyhow::bail!("expected endorsement for kernel-type binary");
     }
-    let expected_digest = get_digest(&statement).context("getting expected digest")?;
+    let expected_digest =
+        get_hex_digest_from_statement(&statement).context("getting expected digest")?;
     let actual_digest = raw_to_hex_digest(&raw_digest_from_contents(&endorsement.subject));
     is_hex_digest_match(&actual_digest, &expected_digest).context("comparing expected digest")?;
     KernelAttachment::decode(&*endorsement.subject)
@@ -772,7 +776,8 @@ fn acquire_verified_kernel_attachment(
     if !is_kernel_type(&statement) {
         anyhow::bail!("expected endorsement for kernel-type binary");
     }
-    let expected_digest = get_digest(&statement).context("getting expected digest")?;
+    let expected_digest =
+        get_hex_digest_from_statement(&statement).context("getting expected digest")?;
     let endorsement = signed_endorsement
         .endorsement
         .as_ref()

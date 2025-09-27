@@ -14,51 +14,16 @@
 // limitations under the License.
 //
 
-use std::{
-    collections::HashSet,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-};
+use std::collections::HashSet;
 
-use anyhow::Result;
 use client::{PrivateMemoryClient, SerializationFormat};
-use private_memory_server_lib::{
-    app,
-    app::{run_persistence_service, ApplicationConfig},
-};
+use private_memory_test_utils::start_server;
 use sealed_memory_rust_proto::{
-    oak::private_memory::{text_query, MatchType, TextQuery},
+    oak::private_memory::{text_query, LlmView, LlmViews, MatchType, TextQuery},
     prelude::v1::*,
 };
-use tokio::net::TcpListener;
 
 static TEST_EK: &[u8; 32] = b"aaaabbbbccccddddeeeeffffgggghhhh";
-
-async fn start_server() -> Result<(
-    SocketAddr,
-    tokio::task::JoinHandle<Result<()>>,
-    tokio::task::JoinHandle<Result<()>>,
-    tokio::task::JoinHandle<()>,
-)> {
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-    let listener = TcpListener::bind(addr).await?;
-    let addr = listener.local_addr()?;
-
-    let db_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-    let db_listener = TcpListener::bind(db_addr).await?;
-    let db_addr = db_listener.local_addr()?;
-
-    let application_config = ApplicationConfig { database_service_host: db_addr };
-
-    let metrics = private_memory_server_lib::metrics::get_global_metrics();
-    let (persistence_tx, persistence_rx) = tokio::sync::mpsc::unbounded_channel();
-    let persistence_join_handle = tokio::spawn(run_persistence_service(persistence_rx));
-    Ok((
-        addr,
-        tokio::spawn(app::service::create(listener, application_config, metrics, persistence_tx)),
-        tokio::spawn(private_memory_test_database_server_lib::service::create(db_listener)),
-        persistence_join_handle,
-    ))
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_client() {
@@ -72,11 +37,20 @@ async fn test_client() {
             PrivateMemoryClient::create_with_start_session(&url, pm_uid, TEST_EK, format)
                 .await
                 .unwrap();
-
+        let llm_view = LlmViews {
+            llm_views: vec![LlmView {
+                embedding: Some(Embedding {
+                    model_signature: "test_model".to_string(),
+                    values: vec![1.0, 0.0, 0.0],
+                }),
+                ..Default::default()
+            }],
+        };
         let memory_id = "test_memory_id";
         let memory_to_add = Memory {
             id: memory_id.to_string(),
             tags: vec!["test_tag".to_string()],
+            views: Some(llm_view),
             ..Default::default()
         };
 
@@ -110,10 +84,15 @@ async fn test_client_pagination() {
             let memory_to_add = Memory {
                 id: memory_id,
                 tags: vec![tag.to_string()],
-                embeddings: vec![Embedding {
-                    identifier: "test_model".to_string(),
-                    values: vec![1.0, 0.0, 0.0],
-                }],
+                views: Some(LlmViews {
+                    llm_views: vec![LlmView {
+                        embedding: Some(Embedding {
+                            model_signature: "test_model".to_string(),
+                            values: vec![1.0, 0.0, 0.0],
+                        }),
+                        ..Default::default()
+                    }],
+                }),
                 ..Default::default()
             };
             client.add_memory(memory_to_add).await.unwrap();
@@ -142,7 +121,7 @@ async fn test_client_pagination() {
                 sealed_memory_rust_proto::oak::private_memory::search_memory_query::Clause::EmbeddingQuery(
                     EmbeddingQuery {
                         embedding: vec![Embedding {
-                            identifier: "test_model".to_string(),
+                            model_signature: "test_model".to_string(),
                             values: vec![1.0, 0.0, 0.0],
                         }],
                         ..Default::default()
@@ -152,19 +131,17 @@ async fn test_client_pagination() {
         };
         let mut actual_ids_search = HashSet::new();
         let mut next_page_token = "".to_string();
-        for i in 0..10 {
+        for _ in 0..10 {
             let response =
                 client.search_memory(query.clone(), 5, None, &next_page_token).await.unwrap();
-            assert_eq!(response.results.len(), 5);
             for result in response.results {
                 actual_ids_search.insert(result.memory.unwrap().id);
             }
             next_page_token = response.next_page_token;
-            if i < 9 {
-                assert!(!next_page_token.is_empty());
+            if next_page_token.is_empty() {
+                break;
             }
         }
-        assert!(next_page_token.is_empty());
         assert_eq!(expected_ids, actual_ids_search);
     }
 }

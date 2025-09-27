@@ -21,9 +21,9 @@ use sealed_memory_grpc_proto::oak::private_memory::sealed_memory_database_servic
     SealedMemoryDatabaseService, SealedMemoryDatabaseServiceServer,
 };
 use sealed_memory_rust_proto::oak::private_memory::{
-    DataBlob, ReadDataBlobRequest, ReadDataBlobResponse, ReadUnencryptedDataBlobRequest,
-    ReadUnencryptedDataBlobResponse, ResetDatabaseRequest, ResetDatabaseResponse,
-    WriteBlobsRequest, WriteBlobsResponse, WriteDataBlobRequest, WriteDataBlobResponse,
+    DataBlob, DeleteBlobsRequest, DeleteBlobsResponse, ReadDataBlobRequest, ReadDataBlobResponse,
+    ReadUnencryptedDataBlobRequest, ReadUnencryptedDataBlobResponse, ResetDatabaseRequest,
+    ResetDatabaseResponse, WriteDataBlobRequest, WriteDataBlobResponse,
     WriteUnencryptedDataBlobRequest, WriteUnencryptedDataBlobResponse,
 };
 use tokio::{net::TcpListener, sync::Mutex};
@@ -117,19 +117,16 @@ impl SealedMemoryDatabaseService for SealedMemoryDatabaseServiceTestImpl {
         Ok(tonic::Response::new(ResetDatabaseResponse {}))
     }
 
-    async fn write_blobs(
+    async fn delete_blobs(
         &self,
-        request: tonic::Request<WriteBlobsRequest>,
-    ) -> Result<tonic::Response<WriteBlobsResponse>, tonic::Status> {
+        request: tonic::Request<DeleteBlobsRequest>,
+    ) -> Result<tonic::Response<DeleteBlobsResponse>, tonic::Status> {
         let request = request.into_inner();
-        for data_blob in request.encrypted_blobs.into_iter() {
-            let id = data_blob.id.clone();
-            self.add_blob_inner(id, data_blob).await;
+        let mut db = self.database.lock().await;
+        for id in request.ids {
+            db.remove(&id);
         }
-        for blob in request.unencrypted_blobs {
-            self.unencrypted_database.lock().await.insert(blob.id.clone(), blob);
-        }
-        Ok(tonic::Response::new(WriteBlobsResponse {}))
+        Ok(tonic::Response::new(DeleteBlobsResponse {}))
     }
 }
 

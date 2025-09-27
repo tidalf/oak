@@ -21,7 +21,7 @@ mod memory_cache;
 
 pub use crate::{
     database_with_cache::DatabaseWithCache,
-    icing::{IcingMetaDatabase, PageToken},
+    icing::{IcingMetaDatabase, IcingTempDir, PageToken},
 };
 
 // The unique id for a memory, responding to `struct Memory`.
@@ -32,3 +32,4 @@ pub use crate::{
 // at `add_memory` requests. Clients then can use this id to get the
 // memory.
 pub type MemoryId = String;
+pub type ViewId = String;

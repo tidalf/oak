@@ -62,6 +62,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "oak.private_memory.DeleteMemoryResponse",
         "oak.private_memory.TextQuery",
         "oak.private_memory.QueryClauses",
+        "oak.private_memory.LLMViews",
+        "oak.private_memory.LLMView",
     ];
 
     let oneof_field_names = [

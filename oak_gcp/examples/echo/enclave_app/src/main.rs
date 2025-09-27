@@ -15,7 +15,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use anyhow::Context;
-use oak_attestation_gcp::attestation::request_attestation_token;
+use oak_attestation_gcp::{attestation::request_attestation_token, OAK_SESSION_NOISE_V1_AUDIENCE};
 use oak_gcp_examples_echo_enclave_app::{app, app_service, gcp};
 use oak_proto_rust::oak::attestation::v1::{
     endorsement::Format, ConfidentialSpaceEndorsement, Endorsement, Signature, SignedEndorsement,
@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("Requesting attestation token for {public_key_hash}...");
     let jwt_token =
-        request_attestation_token("oak://session/attestation", public_key_hash.as_str())?;
+        request_attestation_token(OAK_SESSION_NOISE_V1_AUDIENCE, public_key_hash.as_str())?;
 
     println!("Received evidence: {jwt_token}");
 

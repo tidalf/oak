@@ -1,4 +1,3 @@
-//
 // Copyright 2025 The Project Oak Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +13,7 @@
 // limitations under the License.
 
 use anyhow::Context;
-use external_db_client::ExternalDbClient;
+use external_db_client::{BlobId, ExternalDbClient};
 use rand::Rng;
 use sealed_memory_rust_proto::prelude::v1::*;
 
@@ -64,10 +63,25 @@ impl DatabaseWithCache {
         self.database.needs_writeback()
     }
 
-    pub async fn add_memory(&mut self, mut memory: Memory) -> anyhow::Result<MemoryId> {
+    fn add_memory_id(&mut self, memory: &mut Memory) {
         if memory.id.is_empty() {
             memory.id = rand::rng().random::<u64>().to_string();
         }
+    }
+
+    fn add_llm_view_ids(&mut self, memory: &mut Memory) {
+        if let Some(views) = memory.views.as_mut() {
+            for view in views.llm_views.iter_mut() {
+                if view.id.is_empty() {
+                    view.id = rand::rng().random::<u64>().to_string();
+                }
+            }
+        }
+    }
+
+    pub async fn add_memory(&mut self, mut memory: Memory) -> anyhow::Result<MemoryId> {
+        self.add_memory_id(&mut memory);
+        self.add_llm_view_ids(&mut memory);
         let blob_id = self.cache.add_memory(&memory).await?;
         self.meta_db().add_memory(&memory, blob_id)?;
         Ok(memory.id)
@@ -98,7 +112,7 @@ impl DatabaseWithCache {
         id: MemoryId,
         result_mask: &Option<ResultMask>,
     ) -> anyhow::Result<Option<Memory>> {
-        if let Some(blob_id) = self.meta_db().get_blob_id_by_memory_id(id)? {
+        if let Some(blob_id) = self.meta_db().get_blob_id_by_memory_id(id.clone())? {
             self.cache.get_memory_by_blob_id(&blob_id).await.map(|mut m| {
                 Self::apply_mask_to_memory(&mut m, result_mask);
                 Some(m)
@@ -108,30 +122,48 @@ impl DatabaseWithCache {
         }
     }
 
-    pub async fn reset_memory(&mut self) -> bool {
+    pub async fn reset_memory(&mut self) -> anyhow::Result<()> {
+        let all_memory_ids = self.meta_db().get_all_memory_ids()?;
+        if !all_memory_ids.is_empty() {
+            self.delete_memories(all_memory_ids).await?;
+        }
         self.meta_db().reset();
-        true
+        Ok(())
     }
 
     pub async fn search_memory(
         &mut self,
         request: SearchMemoryRequest,
     ) -> anyhow::Result<(Vec<SearchMemoryResultItem>, PageToken)> {
+        let query = request.query.as_ref().context("the query must be non-empty")?;
         let page_token = PageToken::try_from(request.page_token)
             .map_err(|e| anyhow::anyhow!("Invalid page token: {}", e))?;
-        let (blob_ids, scores, next_page_token) = self.meta_db().search(
-            &request.query.context("the query must be non-empty")?,
-            request.page_size,
-            page_token,
-        )?;
+        let (search_results, next_page_token) =
+            self.meta_db().search(query, request.page_size, page_token)?;
+
+        if search_results.items.is_empty() {
+            return Ok((Vec::new(), next_page_token));
+        }
+
+        // Embedding search
+        let blob_ids: Vec<BlobId> =
+            search_results.items.iter().map(|item| item.blob_id.clone()).collect();
         let mut memories = self.cache.get_memories_by_blob_ids(&blob_ids).await?;
         Self::apply_mask_to_memories(&mut memories, &request.result_mask);
 
         let results = memories
             .into_iter()
-            .zip(scores.into_iter())
-            .map(|(memory, score)| SearchMemoryResultItem { memory: Some(memory), score })
+            .zip(search_results.items.into_iter())
+            .map(|(mut memory, item)| {
+                let score = item.score;
+                let view_ids = item.view_ids;
+                if let Some(views) = memory.views.as_mut() {
+                    views.llm_views.retain(|v| view_ids.contains(&v.id));
+                }
+                SearchMemoryResultItem { memory: Some(memory), score }
+            })
             .collect();
+
         Ok((results, next_page_token))
     }
 
@@ -141,6 +173,7 @@ impl DatabaseWithCache {
         Ok(())
     }
 
+    #[allow(deprecated)]
     // Helper function to apply the result mask to a single Memory object.
     fn apply_mask_to_memory(memory: &mut Memory, mask: &Option<ResultMask>) {
         if let Some(mask) = mask {
